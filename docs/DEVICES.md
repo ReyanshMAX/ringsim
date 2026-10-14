@@ -62,7 +62,8 @@ class DeviceConfig:
 ```
 
 Loader rules:
-- Any value written `TBD(Q-xxx)` → `ConfigIncomplete("Q-xxx: <field>")`, except inside a
+- Any value written `TBD(Q-xxx)` → one `ConfigIncomplete("Q-xxx: <field>; Q-yyy: <field>; ...")`
+  listing every TBD in the file (so `ring` names both Q-001 and Q-002), except inside a
   port that is not in `active_pair`: that port is dropped with a warning naming the Q-ID.
 - `active_pair` names one speaker and one mic in `ports`.
 - Box port points lie on the box surface within 0.5 mm.
