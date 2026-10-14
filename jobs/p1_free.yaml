@@ -1,0 +1,11 @@
+# Phase 1 free-field job (BUILD.md): test_pair, 100 mm spacing, dx 2 mm, 1 frame.
+job_id: p1_free
+device: test_pair
+scene: free
+dx_mm: 2.0
+placement: null
+poses:
+  source: free             # no hand in scene: free
+  n_frames: 1
+dr: null
+seed: 0
