@@ -27,8 +27,11 @@ T_MARGIN_S    = 0.3e-3
 DOMAIN_MARGIN_M = 0.010          # air padding around solids and ports
 PPW_MIN       = 4                # points per wavelength at 28 kHz, asserted
 
-def speed_of_sound(temp_c: float) -> float:
-    return 331.3 * np.sqrt(1 + temp_c / 273.15)
+from ringsim.proc.physics import speed_of_sound, C_SIM, C_MIN   # D-037
+
+# Every sim runs at C_SIM = 343.0 m/s. Temperature is applied later, at read time, by
+# exact time-scaling of the impulse response (PROCESSING.md `temperature_scale`, D-037).
+# t_end uses C_MIN so that the slowest supported air still fits in the IR window.
 ```
 
 ## Pulse
@@ -47,12 +50,12 @@ Any device chirp band must lie in [16, 28] kHz (DEVICES.md loader rule); outside
 
 ```python
 # src/ringsim/solver/grid.py
-def time_axis(dx: float, c: float, range_window_m: float, fs_device: int) -> tuple[float, int, int]:
+def time_axis(dx: float, range_window_m: float, fs_device: int) -> tuple[float, int, int]:
     # fs_sim is forced to an integer multiple k of the device rate so that
     # sim → device resampling is exact decimation (resample_poly(up=1, down=k)).
-    k = int(np.ceil(c / (CFL * dx * fs_device)))     # guarantees CFL_actual <= CFL
+    k = int(np.ceil(C_SIM / (CFL * dx * fs_device)))     # guarantees CFL_actual <= CFL
     dt = 1.0 / (k * fs_device)
-    t_end = PULSE_DELAY + 2*range_window_m / c + T_MARGIN_S
+    t_end = PULSE_DELAY + 2*range_window_m / C_MIN + T_MARGIN_S   # coldest supported air
     return dt, int(np.ceil(t_end / dt)), k
     # dx=2mm, c=343, fs=48k, range 0.30 m → k=12, dt≈1.74 µs, ~1.27k steps, t_end≈2.2 ms
 
@@ -64,11 +67,16 @@ PPW check: `c / 28e3 / dx >= PPW_MIN`, else raise. (dx = 2 mm → 6.1.)
 
 ## Runner
 
-k-wave-python API as used by the passing T4 smoke test. **Verify names against the
-pinned version (Q-010); the smoke-test kernel is the reference implementation.**
+k-wave-python 0.6.2 API, as exercised by the 2026-10-14 T4 smoke run (D-035). In 0.6.2
+`kspaceFirstOrder3D` emits a FutureWarning (deprecated in favour of
+`kwave.kspaceFirstOrder.kspaceFirstOrder`). It works on the pinned version; keep it, and
+silence that one warning with `warnings.filterwarnings`. Migrating is a version bump, which
+needs a new DECISIONS entry and a smoke re-run. Grid sizes passed to `kWaveGrid` are
+wrapped in `kwave.data.Vector`.
 
 ```python
 # src/ringsim/solver/kwave_runner.py
+from kwave.data import Vector
 from kwave.kgrid import kWaveGrid
 from kwave.kmedium import kWaveMedium
 from kwave.ksource import kSource
@@ -78,11 +86,12 @@ from kwave.options.simulation_options import SimulationOptions
 from kwave.options.simulation_execution_options import SimulationExecutionOptions
 
 def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> SimResult:
-    dt, n_t, k = time_axis(medium.dx, medium.c, range_window_m, fs_device)
+    assert medium.c == C_SIM                                # D-037
+    dt, n_t, k = time_axis(medium.dx, range_window_m, fs_device)
     N = medium.rho.shape
-    kgrid = kWaveGrid(list(N), [medium.dx]*3)
+    kgrid = kWaveGrid(Vector(list(N)), Vector([medium.dx]*3))
     kgrid.setTime(n_t, dt)
-    km = kWaveMedium(sound_speed=medium.c, density=medium.rho)
+    km = kWaveMedium(sound_speed=medium.c, density=medium.rho)   # rho already smoothed (D-036)
     src = kSource()
     src.p_mask = np.zeros(N, bool)
     for i in medium.src_idx: src.p_mask[i] = True       # multi-hole speaker, same pulse
@@ -97,8 +106,8 @@ def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> 
     ex = SimulationExecutionOptions(is_gpu_simulation=gpu)
     out = kspaceFirstOrder3D(kgrid=kgrid, medium=km, source=src, sensor=sen,
                              simulation_options=opts, execution_options=ex)
-    # out["p"] is [n_mic_pts, n_t] in k-Wave mask order; average the mic holes
-    return SimResult(ir=np.asarray(out["p"]).reshape(len(medium.mic_idx), -1).mean(0).astype(np.float32),
+    # out["p"] is [n_t, n_mic_pts] (measured, smoke run 2026-10-14); average the mic holes
+    return SimResult(ir=np.asarray(out["p"]).reshape(n_t, len(medium.mic_idx)).mean(1).astype(np.float32),
                      pulse=pulse, fs_sim=1/dt, wall_s=...)
 ```
 
@@ -141,3 +150,6 @@ signal and would force an unaffordable grid.
 - Sub-cell port positions round to the nearest voxel; this error is part of what the
   convergence study measures.
 - Use float32 everywhere; IR amplitudes are relative (linear system, arbitrary source gain).
+- Measured on T4 (smoke run 2026-10-14, smoothed plate, CFL 0.3): 64³ grid × 1200 steps =
+  2.7 s; 124³ × 1300 steps = 13.0 s. Each call carries ~2.5 s of fixed overhead (HDF5 file
+  write + binary launch), so small grids are overhead-bound.

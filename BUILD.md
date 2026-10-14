@@ -12,7 +12,7 @@ starting the next phase. When stopping mid-phase, set STATUS.md
 ## Phase 1 — Free-field pipeline, local and Kaggle
 
 **Scope**
-- Package skeleton, `pyproject.toml` (pin per Q-010), CLI entry point.
+- Package skeleton, `pyproject.toml` (pins per D-035), CLI entry point.
 - `devices/test_pair.yaml` + `load_device` with TBD rejection.
 - `scene: free` (no solids), `build_medium`, `run_ir`, `ShardWriter`, `reader.load_sequence`.
 - All of `ringsim.proc` with its required tests.
@@ -28,11 +28,13 @@ src/ringsim/geometry/voxelize.py   build_medium(scene, dx, c, margin_m) -> Mediu
 src/ringsim/solver/kwave_runner.py run_ir(medium, range_window_m, fs_device, gpu) -> SimResult
 src/ringsim/proc/*                 all signatures in docs/PROCESSING.md
 src/ringsim/dataset/writer.py      ShardWriter
-src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, rng) -> SeqSample
+src/ringsim/proc/physics.py        C_SIM, C_MIN, TEMP_RANGE_C, speed_of_sound, temperature_alpha
+src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, rng) -> SeqSample
 ```
 
 **Acceptance criteria**
 - [ ] `pytest -q` passes, including all `test_proc_*` tests and the isolation test.
+- [ ] `pytest -m slow tests/test_temperature_scaling.py` passes on CPU (D-037 check).
 - [ ] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` naming Q-001.
 - [ ] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame) completes on CPU and writes `data/shards/p1_free.h5` with every attr in DATASET.md.
 - [ ] `ringsim profile` on that shard: direct-path peak at bin 0; no other peak > 10% of it inside the range window.
@@ -41,7 +43,7 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, rng) -> S
 - [ ] `ringsim kaggle push --job jobs/p1_free.yaml` runs on a T4 (kernel log shows T4), `kaggle pull` retrieves a shard whose IR matches the CPU shard to 1e-3 relative L2.
 - [ ] Per-frame `wall_s` for CPU and T4 written to STATUS.md.
 
-**Depends on:** Q-010
+**Depends on:** none (Q-010 resolved → D-035)
 
 ---
 

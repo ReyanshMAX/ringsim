@@ -24,15 +24,14 @@ produced them, and labels (D-009). Profiles are computed at read time through
     git_hash         str     `git rev-parse HEAD`, "+dirty" if uncommitted changes
     kwave_version    str
     created_utc      str     ISO 8601
-    dx_m, c_ref      float   (c per sequence below; c_ref = 343.0 for bin math)
+    dx_m, c_sim      float   c_sim = 343.0 for every frame (D-037)
     fs_device        int
-    k_decim          int     fs_sim = k_decim * fs_device (constant per sequence)
-  /pulse             float32 [n_t]        identical for all frames of a sequence with same c
+    k_decim          int     fs_sim = k_decim * fs_device (constant per shard)
+  /pulse             float32 [n_t]        identical for every frame in the shard
   /seq/<seq_id>/
-    attrs: source str, fps float, n_frames int, temp_c float, c float,
-           ring_rot_deg float, ring_shift_mm float, seed int, k_decim int
+    attrs: source str, fps float, n_frames int,
+           ring_rot_deg float, ring_shift_mm float, seed int
     ir             float32 [T, n_t]        mic pressure, sim rate, gzip level 4, chunk (1, n_t)
-    pulse          float32 [n_t]           present when this seq's dt differs from /pulse
     mano_pose      float32 [T, 48]
     betas          float32 [10]
     joints21       float32 [T, 21, 3]      device/ring frame, metres
@@ -42,8 +41,8 @@ produced them, and labels (D-009). Profiles are computed at read time through
     failed_frames  int32   [F]             frames that hit the rejection rule (GEOMETRY.md)
 ```
 
-Why per-sequence `c`: temperature is randomized per sequence (DR), which changes `dt`
-and `k_decim`. Within a sequence `c` is constant.
+No temperature is stored: every frame is simulated at `c_sim`, and temperature is
+applied by the reader (D-037). One shard serves any temperature in `TEMP_RANGE_C`.
 
 ## Domain randomization v1 (D-013)
 
@@ -52,12 +51,12 @@ and `k_decim`. Within a sequence `c` is constant.
 | `betas` | sim time, per sequence | N(0, `betas_std`²) per dim, clip ±2.5 | real sequences keep their own betas unless `dr.override_betas: true` |
 | `ring_rot_deg` | sim time, per sequence | U(job range, Q-014) | ring config only; ignored for phone |
 | `ring_shift_mm` | sim time, per sequence | U(−10, 10) | ring config only; along bone. Physical analogue of Ring-a-Pose's ±3-bin vertical-shift augmentation (±10.3 mm, §3.6.4), their most effective augmentation (§8.2.6) (D-026) |
-| `temp_c` → `c` | sim time, per sequence | U(job range) | `speed_of_sound(temp_c)` |
+| `temp_c` | read time, per sequence | U(reader range ⊆ `TEMP_RANGE_C`) | applied as `alpha = temperature_alpha(temp_c)` in `rx_from_ir`; exact time-scaling (D-037). Not stored; each read can draw a new temperature |
 | sensor noise | read time, per frame | AWGN, SNR U(`snr_db` range) relative to direct-path power in band | job reader arg, not stored |
 
 ```python
 # src/ringsim/dataset/randomize.py
-def sample_sequence_dr(job: JobSpec, rng: np.random.Generator) -> dict   # betas, ring_rot_deg, ring_shift_mm, temp_c
+def sample_sequence_dr(job: JobSpec, rng: np.random.Generator) -> dict   # betas, ring_rot_deg, ring_shift_mm (sim time)
 def add_noise(stream: np.ndarray, snr_db: float, ref_power: float,
               rng: np.random.Generator) -> np.ndarray
 ```
@@ -73,9 +72,10 @@ class SeqSample:
     labels: np.ndarray | None   # [T, 20, 3]
     meta: dict
 def load_sequence(path: str, seq_id: str, snr_db: float | None,
-                  rng: np.random.Generator | None) -> SeqSample
+                  temp_c: float | None, rng: np.random.Generator | None) -> SeqSample
+    # temp_c None → C_SIM (alpha = 1); otherwise alpha = proc.temperature_alpha(temp_c)
     # dev = DeviceConfig from attrs; tx = proc.tx_frame(dev.chirp, fs)
-    # per frame: proc.rx_from_ir → proc.overlap_add_stream
+    # per frame: proc.rx_from_ir(..., alpha) → proc.overlap_add_stream
     # → add_noise (if snr_db) → proc.align_direct_path → frame_stream
     # → proc.cfmcw_profiles(n_bins = dev.n_range_bins) → differential
 def list_sequences(path: str) -> list[str]

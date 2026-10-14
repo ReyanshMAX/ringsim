@@ -28,7 +28,7 @@ solver.kwave_runner.run_ir ───► IR float32 [n_mic, n_t_sim] @ fs_sim
                 ▼
 dataset.writer.ShardWriter ───► data/shards/<job_id>.h5
                 ▼ (later, anywhere)
-dataset.reader.load_sequence ─► IRs + labels
+dataset.reader.load_sequence ─► IRs + labels (temperature applied here, D-037)
 proc.rx_from_ir + proc.overlap_add_stream ─► rx stream @ device fs
 dataset.randomize.add_noise (load-time DR)
 proc.align_direct_path ─► proc.frame_stream ─► proc.cfmcw_profiles ─► proc.differential
@@ -121,7 +121,6 @@ poses:
   source: walk:42              # or grab:<seq_id> / ih26m:<seq_id>
   n_frames: 120
 dr:                            # DATASET.md
-  temp_c: [15, 30]
   betas_std: 1.0
   ring_rot_deg: TBD(Q-014)     # ring config only
   ring_shift_mm: [-10, 10]     # ring config only; along bone (D-026)

@@ -54,7 +54,7 @@ class DeviceConfig:
     name: str
     fs_hz: int
     chirp: ChirpSpec                # from ringsim.proc (PROCESSING.md)
-    n_range_bins: int               # profile length; range_window_m = n*c_ref/(2*fs)
+    n_range_bins: int               # profile length; range_window_m = n*C_SIM/(2*fs)
     ports: tuple[Port, ...]
     active_pair: tuple[str, str]
     body: BoxBody | RingBody | NoBody

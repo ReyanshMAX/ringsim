@@ -159,8 +159,12 @@ def build_medium(scene, dx, c, margin_m) -> Medium:
     # 2. grid dims via solver.grid.fast_dims(); grid centres x_i = origin + i*dx
     # 3. occupancy: for each mesh, candidate points inside mesh AABB only,
     #    mesh.contains(points) (ray test); OR across meshes
-    # 4. rho = where(occ, RHO_SOLID, RHO_AIR) as float32
-    # 5. port voxel = round((port.pos + dx*port.normal - origin)/dx); assert rho[port]==RHO_AIR
+    # 4. rho = where(occ, RHO_SOLID, RHO_AIR) as float32, then
+    #    rho = scipy.ndimage.gaussian_filter(rho, RHO_SMOOTH_CELLS)   (D-036)
+    #    RHO_SMOOTH_CELLS = 0.5. A sharp jump goes NaN at CFL 0.3 and under-reflects by
+    #    ~38% when stable; smoothed gives 94-95% of a rigid reflector on CPU and T4.
+    #    Port voxels are checked against the UNSMOOTHED occupancy (step 5).
+    # 5. port voxel = round((port.pos + dx*port.normal - origin)/dx); assert not occ[port]
 ```
 
 ## Notes

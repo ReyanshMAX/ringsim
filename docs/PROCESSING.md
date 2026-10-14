@@ -20,6 +20,16 @@ imports this package directly.
 ## Signatures
 
 ```python
+# src/ringsim/proc/physics.py  (solver and dataset import these from here, D-037)
+C_SIM = 343.0                                   # every k-Wave sim runs at this speed
+TEMP_RANGE_C = (10.0, 35.0)                     # supported read-time temperatures
+def speed_of_sound(temp_c: float) -> float:
+    return 331.3 * np.sqrt(1 + temp_c / 273.15)
+C_MIN = speed_of_sound(TEMP_RANGE_C[0])         # ≈ 337.3 m/s, sets the sim time window
+def temperature_alpha(temp_c: float) -> float:  # α = c(T) / C_SIM
+    assert TEMP_RANGE_C[0] <= temp_c <= TEMP_RANGE_C[1]
+    return speed_of_sound(temp_c) / C_SIM
+
 # src/ringsim/proc/chirp.py
 def synth_chirp(spec: ChirpSpec, fs: int) -> np.ndarray
     # linear chirp f0→f1 over duration_s, scipy.signal.chirp(method="linear"),
@@ -33,14 +43,21 @@ def export_sweep_wav(f0: float, f1: float, dur_s: float, fs: int, path: str) -> 
 
 # src/ringsim/proc/ir.py
 def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, k: int, tx: np.ndarray,
-               band: tuple[float, float], fs_device: int, eps: float = 1e-3) -> np.ndarray
+               band: tuple[float, float], fs_device: int, alpha: float = 1.0,
+               eps: float = 1e-3) -> np.ndarray
     # 1. tx_up = resample_poly(tx, up=k, down=1)            (fs_sim = k*fs_device)
-    # 2. N = next_fast_len(len(tx_up) + len(ir))
+    # 2. N = next_fast_len(max(len(tx_up) + len(ir), 2**16))
     # 3. H = R*conj(P) / (|P|^2 + eps*max|P|^2)               R=rfft(ir,N), P=rfft(pulse,N)
+    # 3b. if alpha != 1: H = temperature_scale(H, freqs, alpha)   (D-037)
     # 4. H *= raised-cosine mask: 1 inside band, 1 kHz cosine taper each side, 0 outside
     # 5. y = irfft(H * rfft(tx_up, N), N)
     # 6. return resample_poly(y, up=1, down=k).astype(float32)
     # Output length: ceil((len(tx_up)+len(ir))/k). Pulse delay is removed by the deconvolution.
+def temperature_scale(H: np.ndarray, freqs: np.ndarray, alpha: float) -> np.ndarray
+    # Exact for this model (derivation below): H_{αc}(f) = α · H_c(f/α).
+    # Evaluate H at f/α by linear interpolation of real and imaginary parts on the rfft
+    # grid. The grid must be dense: rx_from_ir zero-pads to N ≥ 2**16 at fs_sim, so
+    # df ≤ fs_sim / 65536 (≈ 9 Hz at 576 kHz). Returns α · H(f/α); 0 where f/α > freqs[-1].
 def overlap_add_stream(frame_rx: list[np.ndarray], frame_len: int) -> np.ndarray
     # frame t's response starts at t*frame_len; echoes spill into frame t+1
 
@@ -61,6 +78,31 @@ def cfmcw_profiles(frames: np.ndarray, tx: np.ndarray, band: tuple[float, float]
 def magnitude(profiles: np.ndarray) -> np.ndarray      # |hilbert(profile)| along bins, display only
 def differential(profiles: np.ndarray) -> np.ndarray   # profiles[1:] - profiles[:-1], [T-1, n_bins]
 ```
+
+## Temperature by time-scaling (D-037)
+
+All sims run at `C_SIM`. With one sound speed c everywhere (D-004) the model is
+
+  ρ₀(x) ∂ₜu = −∇p,   ∂ₜp = −ρ₀(x) c² ∇·u + c² S(x,t)
+
+For c' = αc, the pair p'(x,t) = p(x,αt), u'(x,t) = α⁻¹u(x,αt) satisfies both equations
+when S'(x,t) = α⁻¹S(x,αt). For an impulse source S = qδ(x−x_s)δ(t) this gives
+
+  h_{αc}(x_r, t) = α² h_c(x_r, αt)   ⇔   H_{αc}(f) = α H_c(f/α)
+
+It holds exactly when: c is uniform (D-004); ρ₀ is fixed (a uniform scaling of ρ₀
+leaves p unchanged anyway); there is no absorption or dispersion (SOLVER.md non-goal; if
+absorption is ever added this breaks); geometry does not move; H is sampled inside the
+pulse band at f/α (TEMP_RANGE_C gives α ∈ [0.983, 1.026], so a 20–24 kHz chirp needs
+19.5–24.4 kHz, inside the 16–28 kHz pulse band); and the IR window covers the slowest
+air (t_end uses C_MIN).
+
+Verified 2026-10-14 (k-wave-python 0.6.2, CPU, 64³, plate + two bars, smoothed ρ):
+scaled-from-343 vs direct sims at 349 and 337 m/s differ by 0.10% and 0.03% over
+17–27 kHz after a single complex gain; without scaling the error is 5.4–5.6%. The
+fitted gain is α² at equal dt, times dt_ref/dt otherwise (k-Wave's source normalization).
+That gain is a per-sequence constant and is irrelevant downstream (noise SNR is relative
+to the direct path; training normalizes per channel).
 
 Range interpretation: bin j corresponds to excess round-trip path `j*c/fs` beyond the
 direct speaker→mic path, not absolute distance. Same definition in sim and real.
@@ -85,6 +127,12 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   by m/k device samples (±1 sample), amplitude within 3% inside band.
 - Linearity: `rx_from_ir(a*ir1 + b*ir2) == a*rx1 + b*rx2` to 1e-5 relative.
 - `export_tx_wav` → read back → identical to `tx_frame` to float32 precision.
+- `temperature_scale`: for an analytic H = exp(−2πifτ) (pure delay τ), output equals
+  α·exp(−2πifτ/α) to 1e-4 relative inside 17–27 kHz; alpha = 1 is the identity.
+- `tests/test_temperature_scaling.py` (marked `slow`, needs k-Wave on CPU): the
+  2026-10-14 check above — 64³ grid, smoothed plate + two bars, sims at 343 and 337 m/s
+  with equal dt; scaled-from-343 must match the 337 sim to < 0.5% over 17–27 kHz after
+  fitting one complex scalar, and |scalar| must equal α² to 1%.
 - Isolation test: no forbidden imports in `src/ringsim/proc/`.
 
 ## Notes

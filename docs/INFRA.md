@@ -15,9 +15,9 @@ Kaggle T4 script kernels (all production sims, D-016). One kernel run = one JobS
 
 ```toml
 # pyproject.toml (dependencies section)
-requires-python = "TBD(Q-010)"     # ==<Kaggle minor>.*  e.g. "==3.11.*"
+requires-python = "==3.13.*"       # Kaggle image Python 3.13.15 (D-035)
 dependencies = [
-  "k-wave-python==TBD(Q-010)",
+  "k-wave-python==0.6.2",                         # D-035
   "numpy>=1.26", "scipy>=1.11", "h5py>=3.10", "trimesh>=4.0",
   "smplx>=0.1.28", "torch>=2.1",          # smplx needs torch; CPU build is fine
   "pyyaml>=6", "matplotlib>=3.8", "rtree>=1.2",   # rtree for trimesh.contains
@@ -27,9 +27,9 @@ dependencies = [
 ringsim = "ringsim.cli:main"
 ```
 
-Pin the exact k-wave-python version AND the Python minor version that ran in the passing
-T4 smoke test (Q-010). Local development uses a separate venv on that same minor
-(`uv venv --python 3.X`), never the system Python 3.13. `ringsim kaggle push` checks
+Pins come from the 2026-10-14 T4 smoke run (D-035): Python 3.13.15, k-wave-python 0.6.2.
+Local development uses a venv on Python 3.13 (`uv venv --python 3.13`) so system packages
+don't leak in. `ringsim kaggle push` checks
 the kernel log's `python --version` against the pin and fails loudly on mismatch. `ringsim.proc`
 needs only numpy/scipy; keep it importable without the rest installed
 (`pip install -e .[proc]` extra with numpy, scipy only).
@@ -94,8 +94,12 @@ main(["sim", "--job", "/kaggle/working/job.yaml", "--gpu",
 ```
 
 The kernel prints `python --version` and `pip show k-wave-python` first, so every log
-records both versions (Q-010 check). GPU type: verify `nvidia-smi` in the
+records both versions (checked against D-035). GPU type: verify `nvidia-smi` in the
 kernel log reports a T4; abort with a clear error if it is a P100 (D-016).
+
+Kaggle's "GPU T4 x2" accelerator exposes two T4s (smoke log, 2026-10-14). v1 uses one;
+running two sims in parallel (`SimulationExecutionOptions(device_num=0|1)`, one process
+each) is an option for Phase 5 throughput (Q-007), not built until then.
 
 Accelerator selection and the weekly GPU quota are set in Kaggle's UI/account limits;
 check the current quota before planning bulk runs (Q-007).

@@ -4,6 +4,7 @@ Unresolved. Do not resolve these silently — ask, then move the answer to
 DECISIONS.md (or the relevant config) and delete the entry here. Config fields
 that depend on an entry are written as `TBD(Q-xxx)` and raise at load time.
 
+Resolved 2026-10-14 and removed: Q-010 (→ D-035), Q-015 (→ D-036).
 Resolved 2026-10-11 and removed: Q-003 (labels → D-025), Q-004 (phone geometry →
 DEVICES.md from Apple drawings), Q-012 (phone chirp → D-022), Q-013 (sideload → D-027).
 
@@ -56,7 +57,8 @@ Three unknowns, all settled by Protocol A (VALIDATION.md):
 ## Q-007: Dataset size target
 
 - **Blocking:** no — needed before Phase 5 bulk generation
-- **Options:** Phase 5 throughput × available GPU hours; reference point: Ring-a-Pose
+- **Options:** Phase 5 throughput × available GPU hours; both T4s of "GPU T4 x2" in
+  parallel (INFRA.md) doubles throughput; reference point: Ring-a-Pose
   trained user-independent models on ~18 h of data from 16 hands (§6.3.1), ≈ 5.4 M
   frames at 83.3 frames/s
 - **Depends on it:** job sharding plan
@@ -75,18 +77,6 @@ MANO model files (MANO_RIGHT.pkl), GRAB, InterHand2.6M access.
 - **Options:** set from real-vs-real repeatability across takes/sessions
 - **Depends on it:** Phase 4 acceptance
 
-## Q-010: k-wave-python and Python versions
-
-The exact `k-wave-python` version and the Python minor version that ran in the T4
-smoke-test kernel (what `pip show k-wave-python` and `python --version` printed there).
-Kaggle's image Python may not match the 3.13 on the local machine. The API changes between
-releases, and SOLVER.md's runner code must match the version that is known to work on
-Kaggle.
-- **Blocking:** Phase 1
-- **Options:** read both from the smoke-test kernel's log/output; if not logged, re-run
-  that kernel with `python --version; pip show k-wave-python` added
-- **Depends on it:** `pyproject.toml` `requires-python` and k-wave pin, local venv
-  Python, runner API names
 
 ## Q-011: Transducer frequency response
 

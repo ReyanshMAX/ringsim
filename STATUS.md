@@ -1,14 +1,17 @@
 # Status
 
-**Last updated:** 2026-10-11
+**Last updated:** 2026-10-14
 **Current phase:** 1 of 5 — Free-field pipeline, local and Kaggle
-**Next action:** Resolve Q-010 (k-wave-python and Python versions from the passing T4 smoke-test kernel log), then create `pyproject.toml` and the package skeleton per CLAUDE.md repo structure.
+**Next action:** Create `pyproject.toml` (pins per D-035) and the package skeleton per CLAUDE.md repo structure, then BUILD.md Phase 1 criterion 1.
 
 ---
 
 ## Done
 
 - Spec suite generated (2026-10-11).
+- Vault synced: 2026-10-12 and 2026-10-14 log entries, overview status, spec mirror (2026-10-14).
+- Temperature moved to read time by exact time-scaling, verified numerically (D-037, 2026-10-14).
+- Kaggle T4 smoke run (2026-10-14): versions pinned (D-035), density smoothing chosen (D-036), k-Wave output layout `[n_t, n_sensor]` confirmed.
 - Obsidian vault set up: overview, log, decisions, spec mirror under `03-competitions/isef-ring-pose/` (2026-10-11).
 - Spec audit fixes: forearm instead of wrist cap (D-031), single-speaker phone output (D-032), differential convergence criterion (D-033), wheel-based Kaggle install (D-034), Python version pinned to Kaggle (2026-10-12).
 - Phone geometry, ring signal/label conventions, and sideload path filled from Apple drawings, Ring-a-Pose paper, and lapse-app (2026-10-11).
@@ -17,6 +20,7 @@
 
 - **Phase 1 — Free-field pipeline**
   - [ ] `pytest -q` passes incl. proc tests + isolation test
+  - [ ] Slow temperature-scaling test passes on CPU (D-037)
   - [ ] `load_device`: phone loads with Q-005 warnings; ring raises naming Q-001
   - [ ] CPU free-field shard written with full attrs
   - [ ] Direct-path peak at bin 0, nothing else > 10%
@@ -34,8 +38,7 @@
 
 ## Blocked
 
-- **Q-010** k-wave-python + Python versions — blocks Phase 1 start
-- **Vault sync pending (2026-10-12):** computer unreachable at session end. Next local session: append `_vault_pending/isef-log-2026-10-12.md` to `isef-log.md`, run `scripts/obsidian_sync.py`, delete the pending file.
+None.
 
 ## Measurements
 
@@ -43,6 +46,8 @@
 |---|---|---|
 | wall_s/frame CPU (p1_free) | — | Phase 1 |
 | wall_s/frame T4 (p1_free) | — | Phase 1 |
+| T4 smoke: 64³ × 1200 steps, smoothed plate | 2.7 s | smoke run 2026-10-14 |
+| T4 smoke: 124³ × 1300 steps, smoothed plate | 13.0 s | smoke run 2026-10-14 |
 | static noise floor n | — | Phase 2 |
 | chosen dx | — | Phase 3 |
 | frames / T4 GPU-hour (ring) | — | Phase 5 |

@@ -20,7 +20,8 @@ processed with the same `ringsim.proc` code as sim (D-008).
   target, screen facing up, phone horizontal.
 - Plate: rigid flat board 100 × 100 × ≥5 mm (wood/acrylic), centred on the active
   speaker port's normal axis. Distance measured port-to-plate with a ruler, ±2 mm.
-- Quiet room; record room temperature (°C) per session; it sets `c` for the matching sim.
+- Quiet room; record room temperature (°C) per session. Sims run at 343 m/s as always; the
+  session temperature is passed to the reader as `temp_c` (D-037).
 
 ## Capture file layout
 
@@ -60,7 +61,8 @@ data/captures/<session>/
 
 Distances: 80, 110, 140, 170, 200 mm. Per distance: 3 takes × 10 s of looped tx frames.
 Also 3 takes with no plate (background).
-Sim: `scene: plate` job per distance, same temp, 1 static frame (profile is static).
+Sim: `scene: plate` job per distance, 1 static frame (profile is static), read with the
+session's `temp_c`.
 
 Metrics (`ringsim validate plate`):
 1. **Peak bin error**: in background-subtracted mean profile, bin of the plate echo
@@ -76,8 +78,8 @@ Metrics (`ringsim validate plate`):
 Hand ~100 mm beyond the bottom edge, palm facing the edge, fingers pointing up, wrist
 resting on a fixed support so the wrist position is repeatable. Open↔close at ~1 Hz paced by a
 metronome, 20 s per take, 5 takes per session, 2 sessions on different days.
-Sim: MANO sequence alternating flat hand ↔ fist (slerp, 1 Hz), same placement and
-temp; `hand_rot_deg` puts the fingers along +z, palm toward the phone, so the attached
+Sim: MANO sequence alternating flat hand ↔ fist (slerp, 1 Hz), same placement, read
+with the session's `temp_c`; `hand_rot_deg` puts the fingers along +z, palm toward the phone, so the attached
 forearm (D-031) runs −z like the real arm. The wrist support and table are not modelled:
 they are static and cancel in the differential metric, so compare only differential
 profiles in this protocol, never original profiles. Simulate one 1 s cycle (80 frames at 80 frames/s, D-022) and tile the IRs 20× to

@@ -19,8 +19,8 @@ The iOS capture app used for that validation also lives here.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Language | Python = Kaggle's minor version (Q-010), local venv via uv | sim, processing, dataset, validation |
-| Solver | k-wave-python (pinned, see Q-010) | 3D k-space pseudospectral, CUDA binary |
+| Language | Python 3.13 (D-035), local venv via uv | sim, processing, dataset, validation |
+| Solver | k-wave-python 0.6.2 (D-035), density smoothed (D-036) | 3D k-space pseudospectral, CUDA binary |
 | Hand model | MANO via `smplx` | right hand, license-gated model files |
 | Geometry | `trimesh` | mesh ops, voxelization |
 | Signal | `numpy`, `scipy` | `ringsim.proc` depends on nothing else |
