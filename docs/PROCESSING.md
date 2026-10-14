@@ -45,13 +45,17 @@ def export_sweep_wav(f0: float, f1: float, dur_s: float, fs: int, path: str) -> 
 def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, k: int, tx: np.ndarray,
                band: tuple[float, float], fs_device: int, alpha: float = 1.0,
                eps: float = 1e-3) -> np.ndarray
-    # 1. tx_up = resample_poly(tx, up=k, down=1)            (fs_sim = k*fs_device)
+    # 1. tx_up = resample_poly(tx, up=k, down=1, window=h)  (fs_sim = k*fs_device)
+    #    h = Kaiser FIR, 80 dB, 1 kHz transition centred 500 Hz below fs_device/2.
+    #    resample_poly's default filter droops 21% at 22 kHz over the up+down round
+    #    trip (48 kHz, k=12), failing the 3% amplitude test; h is flat to <0.01%
+    #    up to fs_device/2 - 1 kHz. Same h in step 6.
     # 2. N = next_fast_len(max(len(tx_up) + len(ir), 2**16))
     # 3. H = R*conj(P) / (|P|^2 + eps*max|P|^2)               R=rfft(ir,N), P=rfft(pulse,N)
     # 3b. if alpha != 1: H = temperature_scale(H, freqs, alpha)   (D-037)
     # 4. H *= raised-cosine mask: 1 inside band, 1 kHz cosine taper each side, 0 outside
     # 5. y = irfft(H * rfft(tx_up, N), N)
-    # 6. return resample_poly(y, up=1, down=k).astype(float32)
+    # 6. return resample_poly(y[:len(tx_up)+len(ir)], up=1, down=k, window=h).astype(float32)
     # Output length: ceil((len(tx_up)+len(ir))/k). Pulse delay is removed by the deconvolution.
 def temperature_scale(H: np.ndarray, freqs: np.ndarray, alpha: float) -> np.ndarray
     # Exact for this model (derivation below): H_{αc}(f) = α · H_c(f/α).
@@ -62,9 +66,14 @@ def overlap_add_stream(frame_rx: list[np.ndarray], frame_len: int) -> np.ndarray
     # frame t's response starts at t*frame_len; echoes spill into frame t+1
 
 # src/ringsim/proc/profile.py
-def align_direct_path(stream: np.ndarray, tx: np.ndarray, search_frames: int = 2) -> int
-    # bandpass (see below), xcorr first search_frames*len(tx) samples with tx,
-    # return index of the EARLIEST peak >= 0.5 * max |xcorr|  (direct path, D-019)
+def align_direct_path(stream: np.ndarray, tx: np.ndarray, band: tuple[float, float],
+                      fs: int, search_frames: int = 2) -> int
+    # bandpass (same filter as cfmcw_profiles, see below), xcorr first
+    # search_frames*len(tx) samples with tx, env = |hilbert(xcorr)|,
+    # return index of the EARLIEST local max of env >= 0.5 * max env  (direct path, D-019)
+    # Envelope, not |xcorr|: local maxima of |xcorr| ripple at the carrier, and the
+    # earliest one >= 0.5 max sits ~5 samples early on the main lobe's leading edge
+    # (user decision 2026-10-14). band, fs added because the bandpass needs them.
 def frame_stream(stream: np.ndarray, offset: int, frame_len: int) -> np.ndarray
     # [T, frame_len], T = floor((len(stream)-offset)/frame_len); drop the tail
 def cfmcw_profiles(frames: np.ndarray, tx: np.ndarray, band: tuple[float, float],
@@ -72,7 +81,8 @@ def cfmcw_profiles(frames: np.ndarray, tx: np.ndarray, band: tuple[float, float]
     # n_bins comes from DeviceConfig.n_range_bins (ring: 54, phone: 84).
     # per frame: bandpass = Butterworth order 5, edges = chirp band (Ring-a-Pose §3.4.2),
     #   applied with sosfilt (causal) — filtfilt vs sosfilt parity is Q-002;
-    # corr[j] = sum_n frame[n + j] * chirp[n], j = 0..n_bins-1, via rfft;
+    # corr[j] = sum_n frame[n + j] * tx[n], j = 0..n_bins-1, via zero-padded rfft
+    #   (linear: frame samples past the frame end count as 0);
     # returns SIGNED float32 [T, n_bins]. Lag 0 = direct path after alignment.
     # One bin = c/(2*fs) one-way: 3.43 mm @ 50 kHz, 3.57 mm @ 48 kHz.
 def magnitude(profiles: np.ndarray) -> np.ndarray      # |hilbert(profile)| along bins, display only
@@ -99,8 +109,12 @@ air (t_end uses C_MIN).
 
 Verified 2026-10-14 (k-wave-python 0.6.2, CPU, 64³, plate + two bars, smoothed ρ):
 scaled-from-343 vs direct sims at 349 and 337 m/s differ by 0.10% and 0.03% over
-17–27 kHz after a single complex gain; without scaling the error is 5.4–5.6%. The
-fitted gain is α² at equal dt, times dt_ref/dt otherwise (k-Wave's source normalization).
+17–27 kHz after a single complex gain; without scaling the error is 5.4–5.6%.
+Re-measured 2026-10-14 by `tests/test_temperature_scaling.py` (fixture below): 0.035%
+scaled vs 5.67% unscaled at 337 m/s, identical over 3 runs. The fitted gain g in `direct = g·temperature_scale(H_343)`
+is |g| = 1/α at equal dt (1.0179 measured, 1/α = 1.0178), i.e. the direct sim equals
+H_343(f/α) with unit gain; the earlier "α²" statement was wrong (k-Wave's source
+normalization absorbs one α).
 That gain is a per-sequence constant and is irrelevant downstream (noise SNR is relative
 to the direct path; training normalizes per channel).
 
@@ -132,7 +146,11 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
 - `tests/test_temperature_scaling.py` (marked `slow`, needs k-Wave on CPU): the
   2026-10-14 check above — 64³ grid, smoothed plate + two bars, sims at 343 and 337 m/s
   with equal dt; scaled-from-343 must match the 337 sim to < 0.5% over 17–27 kHz after
-  fitting one complex scalar, and |scalar| must equal α² to 1%.
+  fitting one complex scalar, and |scalar| must equal 1/α to 1%.
+  Fixture (dx 2 mm, grid origin at 0, c = grid centre + 1 mm so no face lies on a grid
+  point): plate 60×60×4 mm centred on c,
+  bars 8×8×60 mm at c + (−30, 20, −10) mm and 8×60×8 mm at c + (25, −5, −25) mm,
+  all ρ = 1000 then smoothed (D-036); speaker voxel (32, 30, 12), mic voxel (32, 33, 12).
 - Isolation test: no forbidden imports in `src/ringsim/proc/`.
 
 ## Notes

@@ -91,3 +91,26 @@ Ring-a-Pose does not report how far the ring rotates on the finger between wears
 - **Options:** ask authors; measure on yourself once the ring exists; temporary value
   logged as a decision
 - **Depends on it:** `dr.ring_rot_deg`
+
+## Q-016: Reference power for read-time noise SNR
+
+DATASET.md: AWGN SNR is "relative to direct-path power in band", but the window the
+direct-path power is measured over (samples around t0? whole direct-only stream?) is
+not defined. `reader.load_sequence(snr_db=...)` raises NotImplementedError until set.
+- **Blocking:** Phase 5 (load-time DR); Phase 2 if plate validation needs noise
+- **Options:** power of the band-passed stream in a window of ±(main-lobe width) around t0
+  in a direct-path-only sim; or power of the profile at bin 0
+- **Depends on it:** `dataset.randomize.add_noise` callers
+
+## Q-017: Voxelization of grid points lying exactly on a mesh face
+
+`trimesh.contains` (ray test) is not deterministic for points exactly on a face. Found
+2026-10-14: the slow-test fixture had box faces on grid points and gave 0.04% vs 2.2%
+scaled error on identical runs; offsetting the boxes by dx/2 fixed it. Hand meshes almost
+never hit this, but axis-aligned boxes do: phone body (Phase 2) and plate at distances
+that are multiples of dx.
+- **Blocking:** Phase 2 (`BoxBody`, plate voxelization)
+- **Options:** voxelize boxes analytically (half-open interval test) instead of
+  `mesh.contains`; or nudge the grid origin by a fixed sub-cell offset; or treat on-face
+  points as solid via a signed-distance tolerance
+- **Depends on it:** `geometry.voxelize.occupancy`

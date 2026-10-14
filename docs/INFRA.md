@@ -110,6 +110,9 @@ check the current quota before planning bulk runs (Q-007).
 ringsim sim --job jobs/p1_free.yaml            # CPU; only for dims <= 96^3
 pytest -q
 ```
+The k-Wave OMP binary (v1.4.1, shipped by k-wave-python 0.6.2) links
+`libhdf5_serial_hl.so.100`; on Ubuntu 24.04 install it with
+`apt-get install libhdf5-hl-100t64` (found 2026-10-14).
 `sim` without `--gpu` refuses grids larger than 96³ (excluding PML) with an error
 pointing to `ringsim kaggle push`.
 

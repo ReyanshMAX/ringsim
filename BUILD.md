@@ -37,7 +37,7 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 - [ ] `pytest -m slow tests/test_temperature_scaling.py` passes on CPU (D-037 check).
 - [ ] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` naming Q-001.
 - [ ] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame) completes on CPU and writes `data/shards/p1_free.h5` with every attr in DATASET.md.
-- [ ] `ringsim profile` on that shard: direct-path peak at bin 0; no other peak > 10% of it inside the range window.
+- [ ] `ringsim profile` on that shard matches an ideal monopole (H = j·2πf·e^{−2πifτ}, τ = 0.100/c) run through the same proc path: envelope peak within 1 bin of the reference's, rel L2 < 10% after one complex gain (`validation/freefield.py`). Revised 2026-10-14: the unwindowed 4 kHz chirp has 26–29% range sidelobes, and k-Wave's mass source makes the direct path a time derivative (≈90° phase), which puts the peak at bin 3, not 0.
 - [ ] Recorded IR arrival time matches `0.100/c + PULSE_DELAY` within 2 sim samples.
 - [ ] Kernel log shows `python --version` and `pip show k-wave-python` matching the pins, and the wheel's `+g<hash>` matching HEAD.
 - [ ] `ringsim kaggle push --job jobs/p1_free.yaml` runs on a T4 (kernel log shows T4), `kaggle pull` retrieves a shard whose IR matches the CPU shard to 1e-3 relative L2.
