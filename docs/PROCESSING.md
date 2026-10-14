@@ -109,8 +109,12 @@ air (t_end uses C_MIN).
 
 Verified 2026-10-14 (k-wave-python 0.6.2, CPU, 64³, plate + two bars, smoothed ρ):
 scaled-from-343 vs direct sims at 349 and 337 m/s differ by 0.10% and 0.03% over
-17–27 kHz after a single complex gain; without scaling the error is 5.4–5.6%. The
-fitted gain is α² at equal dt, times dt_ref/dt otherwise (k-Wave's source normalization).
+17–27 kHz after a single complex gain; without scaling the error is 5.4–5.6%.
+Re-measured 2026-10-14 by `tests/test_temperature_scaling.py` (fixture below): 0.035%
+scaled vs 5.67% unscaled at 337 m/s, identical over 3 runs. The fitted gain g in `direct = g·temperature_scale(H_343)`
+is |g| = 1/α at equal dt (1.0179 measured, 1/α = 1.0178), i.e. the direct sim equals
+H_343(f/α) with unit gain; the earlier "α²" statement was wrong (k-Wave's source
+normalization absorbs one α).
 That gain is a per-sequence constant and is irrelevant downstream (noise SNR is relative
 to the direct path; training normalizes per channel).
 
@@ -142,7 +146,11 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
 - `tests/test_temperature_scaling.py` (marked `slow`, needs k-Wave on CPU): the
   2026-10-14 check above — 64³ grid, smoothed plate + two bars, sims at 343 and 337 m/s
   with equal dt; scaled-from-343 must match the 337 sim to < 0.5% over 17–27 kHz after
-  fitting one complex scalar, and |scalar| must equal α² to 1%.
+  fitting one complex scalar, and |scalar| must equal 1/α to 1%.
+  Fixture (dx 2 mm, grid origin at 0, c = grid centre + 1 mm so no face lies on a grid
+  point): plate 60×60×4 mm centred on c,
+  bars 8×8×60 mm at c + (−30, 20, −10) mm and 8×60×8 mm at c + (25, −5, −25) mm,
+  all ρ = 1000 then smoothed (D-036); speaker voxel (32, 30, 12), mic voxel (32, 33, 12).
 - Isolation test: no forbidden imports in `src/ringsim/proc/`.
 
 ## Notes

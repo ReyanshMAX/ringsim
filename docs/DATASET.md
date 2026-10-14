@@ -39,7 +39,13 @@ produced them, and labels (D-009). Profiles are computed at read time through
     hand_scale_m   float32 scalar          |wrist → little MCP| for Ring-a-Pose size normalization
     wall_s         float32 [T]             per-frame solver wall time
     failed_frames  int32   [F]             frames that hit the rejection rule (GEOMETRY.md)
+    failed_reasons str     [F]             reason per failed frame (fail_frame)
 ```
+
+Scenes without a hand (`free`, `plate`) omit `mano_pose`, `betas`, `joints21`, `labels`,
+`hand_scale_m`; the reader then returns `labels=None`. Their seq attrs are
+`source = "<scene>"`, `fps = 1/frame_period_s`, `ring_rot_deg = ring_shift_mm = 0`,
+`seed` from the job (user decision 2026-10-14).
 
 No temperature is stored: every frame is simulated at `c_sim`, and temperature is
 applied by the reader (D-037). One shard serves any temperature in `TEMP_RANGE_C`.
