@@ -13,7 +13,14 @@ RESAMPLE_ATTEN_DB = 80.0
 
 
 def _ratio(fs_sim: int, fs_device: int) -> tuple[int, int]:
-    """q/p = fs_sim/fs_device as a reduced fraction (D-046)."""
+    """q/p = fs_sim/fs_device as a reduced fraction (D-046). Both rates must be integers.
+
+    A float such as 1/dt = 799999.9999999999 is refused (ValueError), never truncated: int() would
+    give 799999 and a filter design at ~38 GHz. Callers round a float fs_sim after checking it.
+    """
+    for name, v in (("fs_sim", fs_sim), ("fs_device", fs_device)):
+        if v != int(v) or v <= 0:
+            raise ValueError(f"{name} must be a positive integer rate, got {v!r}")
     r = Fraction(int(fs_sim), int(fs_device))
     return r.numerator, r.denominator
 

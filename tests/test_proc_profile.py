@@ -19,10 +19,9 @@ def test_synthetic_bins_0_and_20():
     off = align_direct_path(stream, TX, BAND, FS)
     prof = cfmcw_profiles(frame_stream(stream, off, L), TX, BAND, FS, N_BINS)
     assert prof.dtype == np.float32 and prof.shape[1] == N_BINS
-    for p in prof[2:-1]:                                   # steady-state frames
-        a = np.abs(p)
-        assert np.argmax(a[:10]) <= 1 and np.argmax(a) <= 1
-        assert abs(10 + np.argmax(a[10:]) - 20) <= 1
+    for p in prof[2:-1]:                                   # steady-state frames, signed peaks
+        assert np.argmax(p) <= 1                           # measured 2026-11-11: bin 1
+        assert abs(10 + np.argmax(p[10:]) - 20) <= 1       # measured: bin 19
 
 
 def test_frame_stream_drops_tail():

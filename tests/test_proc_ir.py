@@ -57,6 +57,13 @@ def test_rx_from_ir_delay_and_amplitude(fs_dev, band):
     assert np.max(np.abs(ratio - 1)) < 0.03, np.max(np.abs(ratio - 1))
 
 
+def test_non_integer_rate_refused():
+    tx = synth_chirp(ChirpSpec(18e3, 22e3, 0.0125, 0.0125, "none"), 48_000)
+    pulse = gauss_pulse()
+    with pytest.raises(ValueError, match="fs_sim"):
+        rx_from_ir(pulse, pulse, 799_999.9999999999, tx, (18e3, 22e3), 48_000)
+
+
 def test_rx_from_ir_linearity():
     fs_dev, band = 48_000, (18e3, 22e3)
     tx = tx_frame(ChirpSpec(18e3, 22e3, 0.0125, 0.0125, "none"), fs_dev)

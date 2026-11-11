@@ -52,6 +52,8 @@ def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, fs_sim: int, tx: np.ndarray,
     # passes a stretch of the periodic tx stream (several periods), not a single period.
     # fs_device need not divide fs_sim (D-046): q/p = fs_sim/fs_device as a reduced fraction
     # (12/1 for a 50 kHz shard read at 50 kHz, 25/2 at 48 kHz, 2000/147 at 44.1 kHz).
+    # Both rates must be integers: a float such as 1/dt = 799999.9999999999 (dx 1.5 mm, 50 kHz) raises
+    # ValueError rather than being truncated; the caller rounds after checking (DATASET.md reader).
     # 1. tx_up = resample_poly(tx, up=q, down=p, window=h)
     #    h = Kaiser FIR, 80 dB, 1 kHz transition centred 500 Hz below fs_device/2, designed at
     #    fs_device*q (= fs_sim*p); cached per (fs_sim, fs_device). Scratch 2026-11-10 from 600 kHz:
