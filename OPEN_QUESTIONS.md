@@ -4,7 +4,8 @@ Unresolved. Do not resolve these silently — ask, then move the answer to
 DECISIONS.md (or the relevant config) and delete the entry here. Config fields
 that depend on an entry are written as `TBD(Q-xxx)` and raise at load time.
 
-Resolved 2026-11-11 and removed: Q-024 (forearm end, solids at the grid face → D-053).
+Resolved 2026-11-11 and removed: Q-024 (forearm end, solids at the grid face → D-053), Q-017 (box faces on grid
+points → D-067).
 Resolved 2026-11-10 and removed: Q-018 (→ D-052).
 Resolved 2026-10-14 and removed: Q-010 (→ D-035), Q-015 (→ D-036).
 Resolved 2026-10-11 and removed: Q-003 (labels → D-025), Q-004 (phone geometry →
@@ -109,19 +110,6 @@ not defined. `reader.load_sequence(snr_db=...)` raises NotImplementedError until
   in a direct-path-only sim; or power of the profile at bin 0
 - **Depends on it:** `dataset.randomize.add_noise` callers
 
-## Q-017: Voxelization of grid points lying exactly on a mesh face
-
-`trimesh.contains` (ray test) is not deterministic for points exactly on a face. Found
-2026-10-14: the slow-test fixture had box faces on grid points and gave 0.04% vs 2.2%
-scaled error on identical runs; offsetting the boxes by dx/2 fixed it. Hand meshes almost
-never hit this, but axis-aligned boxes do: phone body (Phase 2) and plate at distances
-that are multiples of dx.
-- **Blocking:** Phase 2 (`BoxBody`, plate voxelization)
-- **Options:** voxelize boxes analytically (half-open interval test) instead of
-  `mesh.contains`; or nudge the grid origin by a fixed sub-cell offset; or treat on-face
-  points as solid via a signed-distance tolerance
-- **Depends on it:** `geometry.voxelize.occupancy`
-
 ## Q-019: Snapshot spacing threshold `snapshot_disp_mm` (D-041)
 
 Max MANO-vertex displacement allowed between consecutive IR snapshots. Known (scratch check
@@ -146,6 +134,8 @@ cells. D-036's smoothing was calibrated on binary occupancy.
   in impedance are alternatives), and how the port-voxel check reads a fraction. D-036 only checked
   reflection strength; the smoothed density is already ~20× air one cell outside the surface, so
   the effective reflecting surface may sit ½–1 cell out. The Phase 2 check measures that offset.
+- **Partly answered 2026-11-11:** boxes use analytic fractions, linear ρ, σ = 0.5 on top (D-067); the check's method
+  is D-072. Still open: the method for hand meshes (Phase 3), and whether the Phase 2 T4 check passes.
 - **Depends on it:** `geometry.voxelize.build_medium`, D-036, convergence study
 
 ## Q-021: Device-residual randomization after referencing (D-042)
@@ -209,3 +199,12 @@ phone the reference is a separate recording and must be aligned on its own (PROC
   both streams identical)
 - **Options:** keep separate offsets (same procedure as real); or the sim reader uses the data offset for the reference
 - **Depends on it:** `dataset.reader`, Protocol C sim-vs-real comparison
+
+## Q-027: Phone-rig measurements (plate thickness, clamp box)
+
+The user's physical rig, measured once: the plate board's thickness (VALIDATION.md gives only "≥ 5 mm"; the sim uses
+the real board's, D-071) and `clamp_box_mm` (outer bounding box of the clamp, ±1 mm, device-frame mm, D-047). Until
+then `jobs/p2_plate_*.yaml` carry `TBD(Q-027)` for the plate thickness and `rig_boxes`, which raise at load.
+- **Blocking:** Phase 2 real-comparison plate sims and the sim background (not the Q-020 check, which runs clamp out)
+- **Options:** none; a measurement by the user, written to `session.json` (clamp) and the plate jobs
+- **Depends on it:** `jobs/p2_plate_*.yaml`, `session.json`

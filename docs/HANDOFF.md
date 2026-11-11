@@ -15,7 +15,7 @@ A lane is a set of files one seat owns and nobody else edits. Need a change in s
 | 2 SIM | devices, geometry, solver, CLI, Kaggle | pyproject.toml, src/ringsim/__init__.py, src/ringsim/cli.py, src/ringsim/devices/** (incl. yaml configs), src/ringsim/geometry/**, src/ringsim/solver/**, jobs/*.yaml, tools/kaggle_run.py, tools/test_kaggle_run.py, kaggle/config.toml, tests/test_devices*.py, tests/test_geometry*.py, tests/test_solver*.py, tests/test_cli*.py | DEVICES, GEOMETRY, SOLVER, INFRA |
 | 3 PROC | ringsim.proc (shared with the hardware) | src/ringsim/proc/**, tests/test_proc_*.py (incl. test_proc_isolation.py), tests/test_temperature_scaling.py (slow; seat 2 runs it on Kaggle) | PROCESSING |
 | 4 DATASET AND VALIDATION | shards, reader, free-field check, test harness | src/ringsim/dataset/** (incl. jobspec.py, Q-030), src/ringsim/validation/**, tests/conftest.py, every test file not owned above | DATASET, VALIDATION |
-| 5 SPECIALIST | OFF this round | Phase 2 candidate: capture-app/**, .github/workflows/ios.yml | CAPTURE_APP |
+| 5 SPECIALIST | iOS capture app (from round 2) | capture-app/**, .github/workflows/ios.yml, docs/CAPTURE_APP.md | CAPTURE_APP |
 
 Bootstrap: seat 2's skeleton (9f682af) created every subpackage's empty `__init__.py`. From that sha on,
 `proc/__init__.py` is seat 3's and `dataset/__init__.py`, `validation/__init__.py` are seat 4's.
@@ -23,6 +23,25 @@ Bootstrap: seat 2's skeleton (9f682af) created every subpackage's empty `__init_
 One owner each: Kaggle runs and the `ringsim-code` upload = seat 2 · full `pytest -q` before round end = seat 4 ·
 BUILD.md boxes, STATUS.md, vault = seat 1 · push = the user · a global install = the seat that needs it, after the
 user's yes in that seat's own chat.
+
+---
+
+# Round 2 — Phase 2 (2026-11-11)
+
+Goal: every Phase 2 acceptance criterion in BUILD.md checked, each with the command (or, for [device] and protocol
+items, the user's report) that proved it. Room: `#ringsim`. Main at round start: a071e9e.
+Decided with the user at round start: D-067..D-073 (occupancy, sweep, plate-metric shapes, real-capture details, plate
+scene, Q-020 method, capture-app details). New: Q-027 (rig measurements: plate thickness, clamp box).
+
+## Seat 1 LEAD
+
+## Seat 2 SIM
+
+## Seat 3 PROC
+
+## Seat 4 DATASET AND VALIDATION
+
+## Seat 5 SPECIALIST (capture app)
 
 ---
 
