@@ -37,6 +37,56 @@ Room: `#ringsim`. Main at round start: ea6dfc5.
 
 ## Seat 2 SIM
 
+Shas on main (all through `scripts/private-commit.sh`; the first one through a scratch copy of the script with only the
+mktemp fix, before 8db4701 fixed main's copy):
+- 9f682af skeleton: pyproject.toml verbatim from INFRA, empty `__init__.py` x7, cli.py with all 6 subcommands
+- 4ef88b3 devices: DeviceConfig + load_device / load_device_yaml (D-055) / device_yaml, 3 YAMLs verbatim; DEVICES.md
+- b0d2b68 geometry (free_scene, build_medium with D-053 guard, D-036 smoothing, Medium.occ / port_covered D-061,
+  save_medium_png) + solver (constants, pulse, grid, simulate, run_ir, wall_s D-063); SOLVER.md, GEOMETRY.md
+- aadaacf runner: tests/ + pyproject.toml embedded as a tar in the kernel, `[sim,dev]` install (D-054 revised); INFRA.md
+- 9fec03d CLI: `ringsim sim` / `ringsim profile` for scene free (D-056, D-060, D-062); medium_time_axis; SOLVER.md
+- 609b02a CLI run-time failure check (D-066: run_error / nonfinite_ir); jobs/p1_tempscale.yaml; GEOMETRY.md
+
+Evidence (command → output):
+- `ringsim --help` → lists sim, profile, export-tx, real, validate, converge
+- `pytest -q tests/test_devices.py` → 16 passed in 0.94s (4ef88b3)
+- `pytest -q tests/test_solver.py tests/test_geometry.py tests/test_devices.py tests/test_cli_skeleton.py` → 47 passed in 5.53s
+- `python tools/test_kaggle_run.py` → ALL PASS (15 checks) (aadaacf)
+- full `pytest -q` on main 609b02a → 115 passed, 2 deselected in 12.69s
+- `python tools/kaggle_run.py doctor` → all ok
+- `python tools/kaggle_run.py --dry-run run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` → build
+  c12f529749d8 (9fec03d), DRY calls only
+- CPU: `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` (tree 9fec03d)
+  → EXIT=0, rc 0, BUILD_ID c12f529749d8 = got_build_id, Python 3.13.16, k-Wave-python 0.6.2, kernel wall_s 79.4.
+  Log: "p1_free: grid (61, 12, 12), dx 2.00 mm, n_t 1433, k 12, CPU", "free snapshot 0: wall_s 7.69",
+  "free ref_ir: wall_s 7.67"
+- T4: `python tools/kaggle_run.py run jobs/p1_free.yaml` (tree 609b02a) → EXIT=0, rc 0, BUILD_ID fb85a88049c9 =
+  got_build_id, Tesla T4, kernel wall_s 68.6; shard wall_s [2.314] s, ref_ir call 1.23 s
+- CPU and T4 trees differ in src only in cli.py (D-066 wrapper) and proc/ir.py (read-time int check); geometry/ and
+  solver/ are identical, so the IR comparison is valid
+- `compare_ir(cpu_h5, t4_h5, "free")` → 1.331e-05 (< 1e-3)
+- `freefield_check(cpu_h5, "free")` → pass True; raw peak bin 3 vs 3, rel_l2 0.0521, gain phase 0.120 rad; ref rel_l2
+  2.85e-05; arrival_err -0.888 sim samples. 44.1 kHz override (D-058) → pass True, raw rel_l2 0.0474, ref 7.57e-05.
+  T4 shard → pass True, raw 3 vs 3, rel_l2 0.0521, arrival -0.888
+- `ringsim profile --shard <cpu_h5> --seq free --out profile.png` → rc 0, JSON pass True
+- slow test: `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"`
+  (tree 609b02a, contains 871ff4a) → EXIT=0, rc 0, BUILD_ID fb85a88049c9 = got_build_id, kernel wall_s 147.3;
+  "alpha=0.98251 n_t=1275 fs_sim=576000 err_scaled=0.0455% err_unscaled=4.7786% |g|=1.01786 1/alpha=1.01780";
+  "2 passed, 12 warnings in 76.61s". The 12 warnings, all known and harmless: k-wave-python 0.6.2 internal
+  `DeprecationWarning: Call to deprecated function ... time_reversal_boundary_data / time_rev (Use TimeReversal class
+  instead) -- Deprecated since version 0.4.1`, raised inside kwave/kWaveSimulation.py lines 60, 208 (x4), 659, 667, 1187,
+  2 per k-Wave call; we never use time reversal. Not the kspaceFirstOrder3D FutureWarning (that one is silenced, SOLVER.md).
+
+Deviations from spec: none. Shapes added beyond the first spec text were each posted and ruled first (D-055 device_yaml,
+D-061 Medium.occ/port_covered, simulate, free_scene, medium_time_axis, D-066); each spec doc changed in the same commit.
+
+Open in my lane:
+- Q-025: `--frames` on static scenes is refused until Phase 3/4 defines frame ranges.
+- The uv venv has no pip; run tools/kaggle_run.py and tools/test_kaggle_run.py with the system `py -3.13`.
+
+next: Phase 2 (BUILD.md) in my lane: BoxBody + plateau voxelization, multi-hole ports, scene plate + placement,
+Q-017 on/off-grid box test, Q-020 sub-cell plate-step run on T4, plate sims for `validate plate`.
+
 ## Seat 3 PROC
 
 ## Seat 4 DATASET AND VALIDATION
