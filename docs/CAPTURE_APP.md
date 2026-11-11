@@ -52,7 +52,8 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]   # fixes stereo channel mapping
-    settings: {base: {PRODUCT_NAME: RingCapture, MARKETING_VERSION: "0.1.0", CURRENT_PROJECT_VERSION: "1"}}
+        UILaunchScreen: {}                   # full-screen, not letterboxed (D-084)
+    settings: {base: {PRODUCT_NAME: RingCapture, MARKETING_VERSION: "0.1.0", CURRENT_PROJECT_VERSION: "1", SWIFT_VERSION: "5.0"}}   # Swift 5 mode (D-084)
 ```
 
 ## Audio configuration (must match exactly)
@@ -223,6 +224,16 @@ install with the free Apple ID in Sideloadly/AltStore, as for lapse-app. CI neve
   across frames with no target present.
 - With `mode: .measurement` removed (manual test build), the profile visibly changes;
   confirms processing is actually being bypassed in the real build. Revert after.
+  Recipe (D-085); the test build never lands on main:
+  1. Only after the main build is installed and its acceptance take is done, seat 5 makes
+     one commit with `git commit-tree` on top of main that changes only
+     `mode: .measurement` → `mode: .default` in `AudioRig.swift`, and points
+     `refs/heads/capture-nomeasure` at it with `git update-ref`.
+  2. The user runs `git push origin capture-nomeasure`. `ios.yml` has a path filter and no
+     branch filter, so the push builds it. Install that IPA and record the same take; compare
+     the profile with the main build's.
+  3. Clean up: `git push origin --delete capture-nomeasure`, then
+     `git branch -D capture-nomeasure`. Reinstall the main build.
 
 ## Notes
 

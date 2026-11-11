@@ -14,4 +14,5 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]   # fixes stereo channel mapping
-    settings: {base: {PRODUCT_NAME: RingCapture, MARKETING_VERSION: "0.1.0", CURRENT_PROJECT_VERSION: "1"}}
+        UILaunchScreen: {}                   # full-screen, not letterboxed (D-084)
+    settings: {base: {PRODUCT_NAME: RingCapture, MARKETING_VERSION: "0.1.0", CURRENT_PROJECT_VERSION: "1", SWIFT_VERSION: "5.0"}}   # Swift 5 mode (D-084)
