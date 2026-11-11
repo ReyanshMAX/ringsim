@@ -76,11 +76,13 @@ def profiles_from_arrays(irs: np.ndarray, snap_t: np.ndarray, pulse: np.ndarray,
                                       free_air_reference)
     band = (min(dev.chirp.f0_hz, dev.chirp.f1_hz), max(dev.chirp.f0_hz, dev.chirp.f1_hz))
     tx = tx_frame(dev.chirp, dev.fs_hz)
-    rx = rx_stream(irs, snap_t, pulse, fs_sim, tx, band, dev.fs_hz, n_frames, alpha)
+    rx = rx_stream(irs, snap_t, pulse, round(fs_sim), tx, band, dev.fs_hz, n_frames, alpha)
     offset = align_direct_path(rx, tx, band, dev.fs_hz)
     frames = frame_stream(rx, offset, len(tx))[:n_frames]
     if mode == "ref":
-        rx_ref = rx_stream(ref_ir[None, :], np.zeros(1), pulse, fs_sim, tx, band, dev.fs_hz, N_AVG + 1, alpha)
+        # DATASET.md: rx_stream of ref_ir as one snapshot over n_avg + 1 frames. If the direct-path offset leaves
+        # fewer than n_avg + 1 full frames, free_air_reference raises ValueError (PROCESSING.md): refused, not patched.
+        rx_ref = rx_stream(ref_ir[None, :], np.zeros(1), pulse, round(fs_sim), tx, band, dev.fs_hz, N_AVG + 1, alpha)
         ref_offset = align_direct_path(rx_ref, tx, band, dev.fs_hz)
         ref = free_air_reference(rx_ref, tx, band, dev.fs_hz, ref_offset, N_AVG)
         return cfmcw_profiles_ref(frames, tx, ref, band, dev.fs_hz, dev.n_range_bins), int(offset)

@@ -115,3 +115,32 @@ def test_override_44k_shape(shard):
                                              frame_period_s=600 / 44100, window="none"))
     s = load_sequence(shard, "free", None, None, None, mode="raw", dev_override=ov)
     assert s.profiles.shape == (3, 77) and s.meta["fs_hz"] == 44100
+
+
+def test_one_frame_shard_both_modes(shard_path, synth_ir):
+    """p1_free is a single frame: proc must cope with a short stream; diff is empty."""
+    w = ShardWriter(shard_path, job_from_dict(dict(RAW, poses={"source": "free", "n_frames": 1})),
+                    load_device("test_pair"))
+    res = synth_ir(n_t=2048)
+    w.begin_sequence("free", {"source": "free", "n_frames": 1, "seed": 5}, None, 2048)
+    w.write_snapshot("free", 0, res)
+    w.write_ref_ir("free", res)
+    w.close()
+    for mode in ("ref", "raw"):
+        s = load_sequence(shard_path, "free", None, None, None, mode=mode)
+        assert s.profiles.shape == (1, 84) and s.diff.shape == (0, 84) and np.isfinite(s.profiles).all()
+
+
+def test_reference_stream_has_n_avg_plus_one_frames(shard, monkeypatch):
+    """DATASET.md: the reference is built over n_avg + 1 frames, whatever the sequence's n_frames."""
+    import ringsim.proc.ir as ir_mod
+    seen = []
+    orig = ir_mod.rx_stream
+
+    def spy(irs, snap_t, pulse, fs_sim, tx, band, fs, n_frames, *a, **k):
+        seen.append((irs.shape[0], n_frames))
+        return orig(irs, snap_t, pulse, fs_sim, tx, band, fs, n_frames, *a, **k)
+
+    monkeypatch.setattr(ir_mod, "rx_stream", spy)
+    load_sequence(shard, "free", None, None, None, mode="ref")
+    assert seen[0] == (1, 3) and seen[1][0] == 1 and seen[1][1] == 51
