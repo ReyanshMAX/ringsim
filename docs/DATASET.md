@@ -112,6 +112,10 @@ def load_sequence(path: str, seq_id: str, snr_db: float | None,
     # mode "raw": proc.cfmcw_profiles(n_bins = dev.n_range_bins)  (Ring-a-Pose parity, D-029)
     # → differential
     # raises SequenceFailed if the sequence's `failed` attr is set (D-048)
+    # snr_db not None raises NotImplementedError naming Q-016 until the noise model is specified
+    # dev_override window rule (D-058): the override's range_window_m may not exceed the shard device's; the shard holds
+    #   exactly the IR its own window needed, and only the window term of SOLVER.md time_axis t_end differs
+    # DeviceConfig comes from devices.config.load_device_yaml(attrs["device_yaml"]) (D-055)
 def list_sequences(path: str, include_failed: bool = False) -> list[str]
 ```
 
@@ -126,11 +130,19 @@ class ShardWriter:
     def __init__(self, path: str, job: JobSpec, dev: DeviceConfig): ...
     def begin_sequence(self, seq_id: str, attrs: dict, schedule: "Schedule", n_t: int): ...
         # schedule from geometry.scene.snapshot_schedule: snap_t, snap_pose, frame_snap, undersampled
-    def write_snapshot(self, seq_id: str, s: int, res: SimResult, joints21): ...
-        # joints21 used only when s is a frame-start snapshot (fills joints21/labels for that frame)
+    def write_snapshot(self, seq_id: str, s: int, res: SimResult, joints21=None, port_covered: bool = False): ...
+        # joints21 used only when s is a frame-start snapshot (fills joints21/labels for that frame);
+        # port_covered = medium.port_covered of that snapshot's Medium (D-048)
+    def write_ref_ir(self, seq_id: str, res: SimResult): ...   # device-only snapshot -> /seq/<id>/ref_ir (D-042, D-056)
     def fail_sequence(self, seq_id: str, reason: str): ...   # whole sequence, never single frames (D-048)
     def close(self): ...
 ```
+
+`schedule` is `None` for the static scenes `free` and `plate` (S = 1); a hand schedule raises
+NotImplementedError until the label frame (D-025) is implemented (Phase 3). `fs_sim` of every `SimResult` must be an
+integer multiple of `fs_device` to 1e-6 relative; `k_decim = round(fs_sim / fs_device)`. Every `pulse` must equal the
+shard's `/pulse` exactly. `job_yaml` is `dataset.jobspec.job_yaml(job)`, `device_yaml` is
+`devices.config.device_yaml(dev)`.
 
 Writes are snapshot-incremental and flushed every 10 snapshots, so a Kaggle kernel killed
 by the time limit leaves a valid partial shard. `n_snapshots_written` attr per sequence

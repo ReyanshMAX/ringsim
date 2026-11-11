@@ -1,8 +1,5 @@
-"""ShardWriter + JobSpec on synthetic data (no k-Wave). DeviceConfig / device_yaml are stubbed until seat 2's
-devices.config lands; the stub is used only if the real module cannot be imported."""
+"""ShardWriter + JobSpec on synthetic data (no k-Wave), real test_pair DeviceConfig."""
 import sys
-import types
-from dataclasses import dataclass
 
 import h5py
 import numpy as np
@@ -13,29 +10,9 @@ from ringsim.dataset.jobspec import ConfigIncomplete, job_from_dict, job_yaml, l
 from ringsim.dataset.writer import ShardWriter
 
 
-@dataclass(frozen=True)
-class _Chirp:
-    frame_period_s: float = 0.0125
-
-
-@dataclass
-class _Dev:
-    name: str = "test_pair"
-    fs_hz: int = 48000
-    chirp: _Chirp = _Chirp()
-
-
-@pytest.fixture(autouse=True)
-def _stub_devices_config(monkeypatch):
-    try:
-        from ringsim.devices.config import device_yaml  # noqa: F401
-        return
-    except Exception:
-        pass
-    import dataclasses
-    mod = types.ModuleType("ringsim.devices.config")
-    mod.device_yaml = lambda d: yaml.safe_dump(dataclasses.asdict(d))
-    monkeypatch.setitem(sys.modules, "ringsim.devices.config", mod)
+def _Dev():
+    from ringsim.devices.config import load_device
+    return load_device("test_pair")
 
 
 RAW = {"job_id": "t", "device": "test_pair", "scene": "free", "dx_mm": 2.0, "placement": None,
@@ -140,13 +117,8 @@ def test_fail_sequence_and_hand_refused(shard_path, synth_ir):
 
 
 _CHILD = """
-import os, sys, types, dataclasses, yaml, numpy as np
+import os, sys, numpy as np
 sys.path.insert(0, {tests!r})
-try:
-    from ringsim.devices.config import device_yaml
-except Exception:
-    m = types.ModuleType("ringsim.devices.config"); m.device_yaml = lambda d: yaml.safe_dump(dataclasses.asdict(d))
-    sys.modules["ringsim.devices.config"] = m
 from test_dataset_writer import _job, _Dev
 from conftest import FakeSimResult, make_pulse
 from ringsim.dataset.writer import ShardWriter

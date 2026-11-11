@@ -161,7 +161,7 @@ class ShardWriter:
     def _check_pulse_and_rate(self, res) -> None:
         pulse = np.asarray(res.pulse, dtype=np.float32)
         k = res.fs_sim / self.dev.fs_hz
-        if abs(k - round(k)) > 1e-9:
+        if abs(k - round(k)) > 1e-6 * k:    # fs_sim = 1/dt is a float (lead, 2026-11-11)
             raise ValueError(f"fs_sim {res.fs_sim} is not an integer multiple of fs_device {self.dev.fs_hz}")
         if self._pulse is None:
             self._pulse = pulse
