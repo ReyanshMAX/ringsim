@@ -3,20 +3,40 @@
 Phases are vertical slices. Each one runs end to end when complete.
 
 On finishing a phase: verify every acceptance criterion, then update STATUS.md and
-the Obsidian vault (log entry + overview status + sync, docs/OBSIDIAN.md) before
-starting the next phase. When stopping mid-phase, set STATUS.md
-**Next action** to the exact next criterion or function.
+the Obsidian vault (docs/OBSIDIAN.md) before starting the next phase. When stopping
+mid-phase, set STATUS.md **Next action** to the exact next criterion or function.
+Kaggle runs are done by the agent with `tools/kaggle_run.py` (docs/INFRA.md), never handed to the user.
+
+---
+
+## Phase 0 — Kaggle runner on a real T4
+
+**Scope**
+- `tools/kaggle_run.py`, `kaggle/config.toml`, `tools/test_kaggle_run.py` already exist (D-038). This phase
+  proves them on real Kaggle and fixes what breaks.
+
+**Non-goals for this phase**
+- No ringsim code. `selftest` ships its own script and needs no wheel.
+
+**Acceptance criteria**
+- [ ] `python tools/test_kaggle_run.py` prints `ALL PASS`.
+- [ ] `python tools/kaggle_run.py doctor` has no FAIL rows except the pyproject/src row.
+- [ ] `python tools/kaggle_run.py selftest` exits 0 on a T4; `run_meta.json` shows `gpu` containing `T4`, Python 3.13.x,
+      k-wave-python 0.6.2, and `ksim.cpu` and `ksim.gpu` both `finite: true`.
+- [ ] Python and k-wave-python versions recorded in STATUS.md match D-035, or D-035 is amended with the new values.
+
+**Depends on:** none (user has run `kaggle auth login` once)
 
 ---
 
 ## Phase 1 — Free-field pipeline, local and Kaggle
 
 **Scope**
-- Package skeleton, `pyproject.toml` (pins per D-035), CLI entry point.
-- `devices/test_pair.yaml` + `load_device` with TBD rejection.
+- Package skeleton, `pyproject.toml` (pins per D-035, contents in INFRA.md), `ringsim` CLI entry point.
+- `devices/test_pair.yaml` + `load_device` with TBD rejection; `iphone17pro.yaml` and `ring.yaml` verbatim from DEVICES.md.
 - `scene: free` (no solids), `build_medium`, `run_ir`, `ShardWriter`, `reader.load_sequence`.
 - All of `ringsim.proc` with its required tests.
-- `ringsim kaggle push/pull` for this job, shipping code as a wheel in the private `ringsim-code` dataset (D-034).
+- `jobs/p1_free.yaml` runs on a Kaggle T4 through `tools/kaggle_run.py`.
 
 **Non-goals for this phase**
 - No MANO, no phone geometry, no randomization, no capture app.
@@ -34,16 +54,15 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 
 **Acceptance criteria**
 - [ ] `pytest -q` passes, including all `test_proc_*` tests and the isolation test.
-- [ ] `pytest -m slow tests/test_temperature_scaling.py` passes on CPU (D-037 check).
-- [ ] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` naming Q-001.
-- [ ] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame) completes on CPU and writes `data/shards/p1_free.h5` with every attr in DATASET.md.
-- [ ] `ringsim profile` on that shard matches an ideal monopole (H = j·2πf·e^{−2πifτ}, τ = 0.100/c) run through the same proc path: envelope peak within 1 bin of the reference's, rel L2 < 10% after one complex gain (`validation/freefield.py`). Revised 2026-10-14: the unwindowed 4 kHz chirp has 26–29% range sidelobes, and k-Wave's mass source makes the direct path a time derivative (≈90° phase), which puts the peak at bin 3, not 0.
+- [ ] `pytest -m slow tests/test_temperature_scaling.py` passes (D-037 check; on CPU if Q-018 allows, else through the runner with `--cmd`).
+- [ ] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` listing Q-001 and Q-002.
+- [ ] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame) completes and writes a shard with every attr in DATASET.md.
+- [ ] `ringsim profile` on that shard matches an ideal monopole (H = j·2πf·e^{−2πifτ}, τ = 0.100/c) run through the same proc path: envelope peak within 1 bin of the reference's, rel L2 < 10% after one complex gain (`validation/freefield.py`). The unwindowed 4 kHz chirp has 26–29% range sidelobes and k-Wave's mass source makes the direct path a time derivative (≈90° phase), so the peak sits near bin 3, not 0 (v1 finding).
 - [ ] Recorded IR arrival time matches `0.100/c + PULSE_DELAY` within 2 sim samples.
-- [ ] Kernel log shows `python --version` and `pip show k-wave-python` matching the pins, and the wheel's `+g<hash>` matching HEAD.
-- [ ] `ringsim kaggle push --job jobs/p1_free.yaml` runs on a T4 (kernel log shows T4), `kaggle pull` retrieves a shard whose IR matches the CPU shard to 1e-3 relative L2.
+- [ ] `python tools/kaggle_run.py run jobs/p1_free.yaml` exits 0 on a T4 with a matching `BUILD_ID` (INFRA.md) and writes `data/shards/p1_free.h5`; that shard's IR matches the local shard to 1e-3 relative L2.
 - [ ] Per-frame `wall_s` for CPU and T4 written to STATUS.md.
 
-**Depends on:** none (Q-010 resolved → D-035)
+**Depends on:** Phase 0
 
 ---
 
@@ -51,7 +70,7 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 
 **Scope**
 - `iphone17pro.yaml` as written in DEVICES.md (from Apple's dimensional drawings); `BoxBody` incl. plateau; multi-hole ports.
-- `scene: plate` + plate placement.
+- `scene: plate` + plate placement. Q-017 (box faces on grid points) resolved here.
 - Capture app per CAPTURE_APP.md, CI unsigned IPA, sideload (D-027).
 - `ringsim export-tx`, `ringsim real`, `validation/sweep.py`, `ringsim validate plate`.
 - Protocols A and B (VALIDATION.md).
@@ -75,6 +94,7 @@ capture-app/                       metadata JSON schema v1
 - [ ] `ringsim validate plate` report exists; peak bin error ≤ 1 at all 5 distances.
 - [ ] Range linearity slope within 5% of 2·fs/c.
 - [ ] Static noise floor `n` computed and written to STATUS.md (reported in Phase 3, not a threshold).
+- [ ] Q-017 resolved: plate and phone-body voxelization gives identical results with box faces on and off grid points (test).
 
 **Depends on:** Phase 1, Q-005 (resolved inside this phase)
 
@@ -86,6 +106,7 @@ capture-app/                       metadata JSON schema v1
 - MANO loading, `hand_mesh`, forearm attachment (D-031), phone-frame placement (hand beyond bottom edge), rejection rule.
 - `random_walk` (static use only here).
 - Medium PNG slices; `ringsim converge`.
+- Private Kaggle dataset `ringsim-assets` created with MANO files; `use_assets = true` in `kaggle/config.toml`.
 
 **Non-goals for this phase**
 - No sequences, no differential validation, no real pose datasets, no ring.
@@ -102,7 +123,7 @@ src/ringsim/geometry/scene.py      build_scene(dev, pose48, betas, placement) ->
 - [ ] `attach_forearm(hand_mesh(...))` is watertight for 100 random poses, and has no faces in the wrist plane other than the stitched loop (test: no flat cap).
 - [ ] For a flat-hand frame, forearm voxels touch the grid face (assert in `build_medium`), visible in the medium PNG.
 - [ ] Medium PNG for a flat-hand frame shows the hand and phone in the expected positions (checked by the user, noted in STATUS.md).
-- [ ] `ringsim converge` runs on T4 for dx ∈ {2.0, 1.5, 1.0} plus the 0.75 mm reference check, on the random and adducted subsets, and writes `reports/converge/report.md` with differential e(dx), separation s, static error, real noise floor n, and wall time per dx (SOLVER.md).
+- [ ] `ringsim converge` runs on T4 through the runner for dx ∈ {2.0, 1.5, 1.0} plus the 0.75 mm reference check, on the random and adducted subsets, and writes `reports/converge/report.md` with differential e(dx), separation s, static error, real noise floor n, and wall time per dx (SOLVER.md).
 - [ ] dx chosen per SOLVER.md rule; DECISIONS.md updated; Q-006 deleted.
 
 **Depends on:** Phase 2, Q-008 (MANO)
@@ -161,4 +182,4 @@ scripts/make_jobs.py               --n-seq N --real-frac 0.7 --out jobs/batch_<k
 - [ ] Throughput benchmark (frames/GPU-hour on T4) in STATUS.md; dataset size set; Q-007 deleted.
 - [ ] First batch generated; `load_sequence` with `snr_db` returns labels [T,20,3] and profiles for every shard (smoke script over all shards).
 
-**Depends on:** Phase 4, Q-001, Q-002, Q-014
+**Depends on:** Phase 4, Q-001, Q-002, Q-014, Q-016

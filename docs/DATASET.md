@@ -21,7 +21,7 @@ produced them, and labels (D-009). Profiles are computed at read time through
     schema_version   = 1
     job_yaml         str     full resolved JobSpec
     device_yaml      str     full resolved DeviceConfig
-    git_hash         str     `git rev-parse HEAD`, "+dirty" if uncommitted changes
+    build_id         str     env RINGSIM_BUILD_ID if set (Kaggle kernels have no git, INFRA.md), else `git rev-parse --short HEAD` + "+dirty" if uncommitted changes
     kwave_version    str
     created_utc      str     ISO 8601
     dx_m, c_sim      float   c_sim = 343.0 for every frame (D-037)

@@ -114,3 +114,11 @@ that are multiples of dx.
   `mesh.contains`; or nudge the grid origin by a fixed sub-cell offset; or treat on-face
   points as solid via a signed-distance tolerance
 - **Depends on it:** `geometry.voxelize.occupancy`
+
+## Q-018: Does local CPU k-Wave run on the user's Windows machine?
+
+v1 ran CPU k-Wave on Linux only (needed `libhdf5-hl-100t64`). The user develops on Windows. Unknown whether
+k-wave-python 0.6.2's bundled Windows binary runs, and at what speed.
+- **Blocking:** Phase 1 criteria that need k-Wave on CPU (`pytest -m slow`, local `ringsim sim`)
+- **Options:** try it and record the result; WSL2; or run those checks through `tools/kaggle_run.py --cmd`
+- **Depends on it:** where the slow tests and tiny-grid runs execute

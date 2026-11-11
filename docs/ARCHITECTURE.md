@@ -101,9 +101,9 @@ ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/
 ringsim real     --capture data/captures/<name>.wav --device iphone17pro --out <png>
 ringsim validate plate|hand --sim <h5> --real <dir> --out reports/<name>/
 ringsim converge --job jobs/converge.yaml --dx 2.0,1.5,1.0
-ringsim kaggle push --job jobs/<job>.yaml   # builds wheel → ringsim-code dataset, renders kernel, pushes (INFRA.md)
-ringsim kaggle pull --job-id <id>           # `kaggle kernels output` into data/shards/
 ```
+
+Kaggle is not a `ringsim` subcommand: `python tools/kaggle_run.py run jobs/<job>.yaml` (INFRA.md, D-038).
 
 ## JobSpec
 
@@ -130,5 +130,5 @@ seed: 7
 ## Notes
 
 - All internal units SI (metres, seconds, Hz). Configs use mm; convert at load.
-- Every shard stores the full resolved JobSpec + DeviceConfig + git hash, so any
+- Every shard stores the full resolved JobSpec + DeviceConfig + build id, so any
   frame is reproducible from the shard alone.
