@@ -1,0 +1,41 @@
+name: iphone17pro
+fs_hz: 48000
+chirp:                       # D-015 band; D-022 timing
+  f0_hz: 18000
+  f1_hz: 22000
+  duration_s: 0.0125         # 600 samples @ 48 kHz
+  frame_period_s: 0.0125     # continuous FMCW, as Ring-a-Pose
+  window: none
+n_range_bins: 84             # 0.30 m one-way
+frame: device
+body:
+  kind: box
+  size_mm: [71.85, 150.01, 8.75]        # sheet 1: product width / length / thickness
+  plateau_size_mm: [71.85, 58.01, 2.55] # sheet 4 plateau edge at y_draw 58.01; sheet 1 back plate→plateau 2.55
+  plateau_center_mm: [0.0, 46.0, -5.65]
+ports:
+  # Bottom edge, sheet 1 detail B: 4X speaker ports at x_draw 15.40, 17.65, 19.91, 22.16;
+  # bottom mic 2 at 24.42; 10X Ø1.06 ports at mid-thickness (z_draw 4.375).
+  - name: bottom_spk
+    kind: speaker
+    points_mm: [[-20.525, -75.005, 0], [-18.275, -75.005, 0], [-16.015, -75.005, 0], [-13.765, -75.005, 0]]
+    normal: [0, -1, 0]
+  - name: bottom_mic2
+    kind: mic
+    points_mm: [[-11.505, -75.005, 0]]
+    normal: [0, -1, 0]
+  - name: bottom_mic1        # right-hand port group x_draw 47.43–56.45; exact hole per Q-005
+    kind: mic
+    points_mm: TBD(Q-005)
+    normal: [0, -1, 0]
+  # Top: receiver + front mic share one slot, sheet 1 detail A: length 27.38 centred at
+  # x_draw 35.92, at y_draw 0.70–1.25. Front-mic position within the slot is not dimensioned.
+  - name: earpiece
+    kind: speaker
+    points_mm: [[0.0, 74.03, 4.375]]
+    normal: [0, 0, 1]
+  - name: front_mic
+    kind: mic
+    points_mm: TBD(Q-005)
+    normal: [0, 0, 1]
+active_pair: [bottom_spk, bottom_mic2]  # D-023

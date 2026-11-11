@@ -1,0 +1,29 @@
+name: ring
+fs_hz: 50000                   # §3.3
+chirp:
+  f0_hz: 20000                 # §3.3: 20–24 kHz
+  f1_hz: 24000
+  duration_s: 0.012            # 600 samples @ 50 kHz
+  frame_period_s: 0.012        # continuous FMCW, 83.3 frames/s
+  window: TBD(Q-002)           # not stated in paper
+n_range_bins: 54               # §3.4.2: 54 px from direct path = 18.52 cm
+frame: ring
+body:
+  kind: ring
+  clearance_mm: 0.0            # sized to the finger (yarn + sliding knot, §3.2)
+  wall_mm: 2.0                 # §3.2
+  sensor_section_mm: 3.58      # §3.2
+  sensor_section_arc_deg: TBD(Q-001)
+  width_mm: 11.0               # §3.2
+  arc_deg: 270                 # §3.2: 3/4 circle
+  gap_center_deg: TBD(Q-001)
+  finger: middle               # §6.2.1 main study, right hand
+  phalanx: TBD(Q-001)
+  along_bone_frac: TBD(Q-001)
+ports:
+  # Facing the palm, side by side across the finger, 5.4 mm apart (§3.2); "inner edge of
+  # the speaker" centred on the finger (§5.2.2). Angular placement is computed from these
+  # at scene build time: speaker centre offset by speaker_half_width toward side S.
+  - {name: spk, kind: speaker, points_mm: TBD(Q-001), normal: [0, -1, 0]}
+  - {name: mic, kind: mic,     points_mm: TBD(Q-001), normal: [0, -1, 0]}
+active_pair: [spk, mic]

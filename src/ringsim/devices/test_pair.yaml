@@ -1,0 +1,10 @@
+name: test_pair
+fs_hz: 48000
+chirp: {f0_hz: 18000, f1_hz: 22000, duration_s: 0.0125, frame_period_s: 0.0125, window: none}
+n_range_bins: 84
+body: {kind: none}
+frame: device
+ports:
+  - {name: spk, kind: speaker, points_mm: [[0, 0, 0]],   normal: [0, 0, 1]}
+  - {name: mic, kind: mic,     points_mm: [[100, 0, 0]], normal: [0, 0, 1]}
+active_pair: [spk, mic]

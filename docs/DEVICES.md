@@ -70,6 +70,14 @@ Loader rules:
 - Chirp band inside the solver pulse band [16, 28] kHz (SOLVER.md).
 - `round(chirp.frame_period_s * fs_hz)` is an integer to 1e-9.
 - `range_window_m` property = `n_range_bins * 343.0 / (2 * fs_hz)`.
+- A broken rule other than a TBD raises `ValueError` naming the device and the rule.
+
+Loading and storing (D-055), all in `devices/config.py`:
+- `load_device_yaml(text) -> DeviceConfig` applies every rule above to YAML text. `load_device(name)`
+  reads `devices/<name>.yaml` and calls it; the dataset reader calls it on a shard's `device_yaml` attr.
+- `device_yaml(dev) -> str` = `yaml.safe_dump(asdict(dev))` (tuples written as lists): the fully
+  resolved config stored in shards. Ports dropped for a TBD are absent, so
+  `load_device_yaml(device_yaml(dev)) == dev` with no warning (tested).
 
 Device frame (phone): origin at body centroid, +x toward the right edge when looking
 at the screen, +y toward the top edge, +z out of the screen.
