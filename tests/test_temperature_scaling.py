@@ -2,11 +2,9 @@
 
 Fixture as PROCESSING.md "Required tests": 64^3 grid, dx 2 mm, grid origin at 0, c = grid
 centre + 1 mm = 65 mm; plate 60x60x4 mm centred on c, bars 8x8x60 mm at
-c + (-30, 20, -10) mm and 8x60x8 mm at c + (25, -5, -25) mm, all rho = 1000 then smoothed (D-036);
+c + (-30, 20, -10) mm and 8x60x8 mm at c + (24, -6, -26) mm, all rho = 1000 then smoothed (D-036);
 speaker voxel (32, 30, 12), mic voxel (32, 33, 12). Both sims use the same dt and n_t, and the
-same occupancy (built once), so the comparison does not depend on how face points voxelize.
-Open (posted to the lead 2026-11-11): the second bar's faces fall on grid points (x 86/94, y 30/90,
-z 36/44 mm), contrary to the spec's "no face on a grid point".
+same occupancy (built once). No box face lies on a grid point (asserted: exact cell counts).
 run_ir asserts c == C_SIM, so both go through solver.kwave_runner.simulate (ARCHITECTURE, 22af4bc).
 k-Wave runs only through the Kaggle runner (D-052, D-054); slow, deselected by default.
 """
@@ -37,10 +35,11 @@ def fixture_occupancy():
     boxes = [
         trimesh.creation.box(extents=[0.060, 0.060, 0.004]).apply_translation(ctr),
         trimesh.creation.box(extents=[0.008, 0.008, 0.060]).apply_translation(ctr + [-0.030, 0.020, -0.010]),
-        trimesh.creation.box(extents=[0.008, 0.060, 0.008]).apply_translation(ctr + [0.025, -0.005, -0.025]),
+        trimesh.creation.box(extents=[0.008, 0.060, 0.008]).apply_translation(ctr + [0.024, -0.006, -0.026]),
     ]
     occ = occupancy(boxes, origin, DIMS, DX)
-    assert occ.any() and not occ[SPK] and not occ[MIC]
+    # plate 30x30x2 + bar 4x4x30 (16 cells shared with the plate) + bar 4x30x4 = 2744 cells
+    assert occ.sum() == 1800 + 480 - 16 + 480 and not occ[SPK] and not occ[MIC]
     return occ
 
 

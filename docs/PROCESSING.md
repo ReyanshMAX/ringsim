@@ -261,9 +261,10 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   2026-10-14 check above — 64³ grid, smoothed plate + two bars, sims at 343 and 337 m/s
   with equal dt; scaled-from-343 must match the 337 sim to < 0.5% over 17–27 kHz after
   fitting one complex scalar, and |scalar| must equal 1/α to 1%.
-  Fixture (dx 2 mm, grid origin at 0, c = grid centre + 1 mm so no face lies on a grid
-  point): plate 60×60×4 mm centred on c,
-  bars 8×8×60 mm at c + (−30, 20, −10) mm and 8×60×8 mm at c + (25, −5, −25) mm,
+  Fixture (dx 2 mm, grid origin at 0, c = grid centre N·dx/2 = 64 mm, + 1 mm = 65 mm per
+  axis, so no face lies on a grid point): plate 60×60×4 mm centred on c,
+  bars 8×8×60 mm at c + (−30, 20, −10) mm and 8×60×8 mm at c + (24, −6, −26) mm
+  (shifted 1 mm per axis 2026-11-11, user: at (25, −5, −25) all its faces fell on grid points),
   all ρ = 1000 then smoothed (D-036); speaker voxel (32, 30, 12), mic voxel (32, 33, 12).
 - `tests/test_proc_reference.py`: stream = direct path + 4 echoes; real-side copies pass through 50
   random device responses (magnitude tilt up to −8 dB across the band, random constant, quadratic
