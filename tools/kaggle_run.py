@@ -17,7 +17,7 @@ Exit codes: 0 ok, 1 failed (incl. no run_meta.json), 2 usage/config (incl. job_i
 """
 from __future__ import annotations
 
-import argparse, base64, csv, hashlib, io, json, os, re, shutil, subprocess, sys, tempfile, time
+import argparse, base64, csv, hashlib, io, json, os, re, shutil, subprocess, sys, tarfile, tempfile, time
 from pathlib import Path
 
 try:
@@ -232,6 +232,7 @@ EXPECT = "__BUILD_ID__"          # "" in selftest
 MODE = "__MODE__"                # "job" | "selftest"
 CMD = base64.b64decode("__CMD_B64__").decode()
 JOB_YAML = base64.b64decode("__JOB_B64__").decode()
+TESTS_TAR = base64.b64decode("__TESTS_B64__")     # tests/ + pyproject.toml, extracted to the run dir (D-054)
 K = os.environ.get("KAGGLE_ROOT", "/kaggle"); W = K + "/working"; OUT = W + "/out"; os.makedirs(OUT, exist_ok=True)
 meta = {"mode": MODE, "build_id": EXPECT, "python": sys.version.split()[0], "t0": time.time()}
 
@@ -270,7 +271,7 @@ if MODE == "job":
     whl = glob.glob(os.path.dirname(ids[0]) + "/*.whl")
     if len(whl) != 1:
         finish(4, f"WHEEL_COUNT: {whl}")
-    if run(PY + ["install", "-q", whl[0] + "[sim]"]).returncode:        # [sim]: everything beyond numpy/scipy
+    if run(PY + ["install", "-q", whl[0] + "[sim,dev]"]).returncode:    # [sim]: beyond numpy/scipy; [dev]: pytest (D-054)
         finish(1, "PIP_INSTALL_FAILED")
     run(PY + ["install", "-q", "--force-reinstall", "--no-deps", whl[0]])   # same version string, new code
     for p in glob.glob(K + "/input/*") + glob.glob(K + "/input/*/*"):
@@ -278,7 +279,13 @@ if MODE == "job":
             os.environ["RINGSIM_DATA"] = p; meta["assets"] = p
     os.environ["RINGSIM_BUILD_ID"] = EXPECT      # shards record this; kernels have no git
     open(W + "/job.yaml", "w").write(JOB_YAML)
+    import io as _io, tarfile as _tarfile, tempfile as _tempfile
+    RUN_DIR = _tempfile.mkdtemp(prefix="ringsim-run-")      # outside /kaggle/working: nothing extra comes back
+    with _tarfile.open(fileobj=_io.BytesIO(TESTS_TAR), mode="r:gz") as tf:
+        tf.extractall(RUN_DIR, filter="data")
+    meta["run_dir_files"] = sum(len(f) for _, _, f in os.walk(RUN_DIR))
 else:
+    RUN_DIR = W
     run(PY + ["install", "-q", "k-wave-python==0.6.2"])
 meta["kwave"] = "\n".join(subprocess.run(PY + ["show", "k-wave-python"], capture_output=True, text=True).stdout.splitlines()[:2])
 print(meta["kwave"], flush=True)
@@ -353,7 +360,7 @@ if MODE == "selftest":
         import traceback; traceback.print_exc()
         finish(1, f"KSIM_EXCEPTION: {e!r}")
 
-rc = sh(CMD.replace("{job}", W + "/job.yaml").replace("{out}", OUT)).returncode
+rc = sh(CMD.replace("{job}", W + "/job.yaml").replace("{out}", OUT), cwd=RUN_DIR).returncode
 finish(rc, "" if rc == 0 else "CMD_FAILED")
 '''
 
@@ -429,10 +436,24 @@ def bench_cases() -> list[dict]:
     return cases
 
 
+def tests_tar() -> bytes:
+    """tests/ (no caches) + pyproject.toml as a gzip tar, embedded in job kernels (D-054). Not part of BUILD_ID."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        files = sorted(p for p in (ROOT / "tests").rglob("*") if p.is_file() and "__pycache__" not in p.parts
+                       and ".pytest_cache" not in p.parts and not p.name.endswith((".pyc", ".pyo")))             if (ROOT / "tests").is_dir() else []
+        if (ROOT / "pyproject.toml").exists():
+            files.append(ROOT / "pyproject.toml")
+        for f in files:
+            tf.add(f, arcname=f.relative_to(ROOT).as_posix(), recursive=False)
+    return buf.getvalue()
+
+
 def render_kernel(build: str, mode: str, cmd: str, job_text: str) -> str:
     b64 = lambda s: base64.b64encode(s.encode()).decode()
+    tests = base64.b64encode(tests_tar() if mode == "job" else b"").decode()
     return (KERNEL_TEMPLATE.replace("__BUILD_ID__", build).replace("__MODE__", mode)
-            .replace("__CMD_B64__", b64(cmd)).replace("__JOB_B64__", b64(job_text))
+            .replace("__CMD_B64__", b64(cmd)).replace("__JOB_B64__", b64(job_text)).replace("__TESTS_B64__", tests)
             .replace("__BENCH_B64__", b64(BENCH_CASE if mode == "bench" else ""))
             .replace("__CASES_B64__", b64(json.dumps(bench_cases() if mode == "bench" else []))))
 

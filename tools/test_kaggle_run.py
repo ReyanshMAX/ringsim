@@ -68,6 +68,7 @@ def main():
         where = ["src"]
     '''))
     (repo / "jobs").mkdir(); (repo / "jobs" / "t_job.yaml").write_text("job_id: t_job\n")
+    (repo / "tests").mkdir(); (repo / "tests" / "test_x.py").write_text("V = 1\n")
     venv = td / "venv"; run([sys.executable, "-m", "venv", str(venv)])
     py = str(venv / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"))
     WIN = os.name == "nt"
@@ -101,6 +102,20 @@ def main():
     (repo / "src" / "pkgx" / "__init__.py").write_text("X = 2\n")       # dirty change -> new build id, same flow
     r2 = run(R + ["run", "jobs/t_job.yaml", "--cmd", "python -c \"import pkgx;assert pkgx.X==2\""], cwd=repo, env=env)
     check("uncommitted change ships and runs", r2.returncode == 0, r2.stdout[-1500:] + r2.stderr[-1500:])
+
+    bid_before = meta.get("build_id")
+    (repo / "src" / "pkgx" / "__init__.py").write_text("X = 1\n")       # back to the first run's code
+    (repo / "tests" / "test_x.py").write_text("V = 2\n")                 # tests-only change (D-054)
+    probe = ("python -c \"import os,sys,pkgx;sys.path.insert(0,'tests');import test_x;"
+             "assert test_x.V==2 and os.path.isfile('pyproject.toml') and 'working' not in os.getcwd()\"")
+    r9 = run(R + ["run", "jobs/t_job.yaml", "--cmd", probe], cwd=repo, env=env)
+    mp = repo / "data/kaggle/t_job/out/run_meta.json"
+    meta9 = json.loads(mp.read_text()) if mp.exists() else {}
+    check("tests/ + pyproject shipped in the kernel, --cmd runs in the run dir", r9.returncode == 0,
+          r9.stdout[-1500:] + r9.stderr[-1500:])
+    check("tests-only change keeps BUILD_ID", bid_before and meta9.get("build_id") == bid_before,
+          f"{bid_before} vs {meta9.get('build_id')}")
+    check("run dir not shipped back", not (repo / "data/kaggle/t_job/out/tests").exists())
 
     r3 = run(R + ["run", "jobs/t_job.yaml", "--cmd", "false"], cwd=repo, env=env)
     check("failing job command -> exit 1", r3.returncode == 1)

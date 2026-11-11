@@ -94,7 +94,9 @@ python tools/test_kaggle_run.py                      offline test against a fake
    content, so a seat can test work in progress;
 3. `pip wheel` the package into `data/kaggle/<job_id>/code/` next to a `BUILD_ID` file, then
    `kaggle datasets create` (first time) or `version` on the private dataset `ringsim-code`; wait until `ready`;
-4. render `run_job.py` (job YAML and command embedded) + `kernel-metadata.json`; `kaggle kernels push --accelerator NvidiaTeslaT4`;
+4. render `run_job.py` (job YAML, command, and a base64 gzip tar of `tests/` + `pyproject.toml` embedded, D-054) +
+   `kernel-metadata.json`; `kaggle kernels push --accelerator NvidiaTeslaT4`. The tests tar is not part of BUILD_ID:
+   it travels inside the kernel script itself, so a tests-only change can never run stale;
 5. release the lock once the kernel reports RUNNING (inputs are mounted by then), poll every 30 s;
 6. empty `data/kaggle/<job_id>/out/`, `kaggle kernels output` into it (3 attempts: transient SSL errors happen; the CLI
    runs with UTF-8 forced, as Windows' default code page breaks the log download), copy `*.h5` to `data/shards/`, print the log tail
@@ -102,9 +104,11 @@ python tools/test_kaggle_run.py                      offline test against a fake
 
 The kernel script, in order: print Python and `nvidia-smi`; exit 3 if the GPU is not a T4 (D-016); find
 `BUILD_ID` under `/kaggle/input`, exit 4 `BUILD_ID_MISMATCH` if it differs from the expected one (the runner
-retries twice after 45 s; Kaggle can mount a stale version); `pip install "<wheel>[sim]"`, then the wheel again with
+retries twice after 45 s; Kaggle can mount a stale version); `pip install "<wheel>[sim,dev]"` (`dev` = pytest, D-054), then the wheel again with
 `--force-reinstall --no-deps` (same version string, new code); set `RINGSIM_DATA` if the assets dataset is
-mounted; run the command with `{job}` and `{out}` filled in; write `run_meta.json` (rc, why, gpu, versions,
+mounted; extract the embedded `tests/` + `pyproject.toml` into a fresh temp run dir (outside `/kaggle/working`, so it
+does not come back); run the command there (cwd = run dir, so `pytest -m slow tests/...` finds the tests and the pytest
+config) with `{job}` and `{out}` filled in as absolute paths; write `run_meta.json` (rc, why, gpu, versions,
 wall_s, build id) to `/kaggle/working`. Everything in `/kaggle/working` comes back. The kernel runs its own
 commands as argument lists (no shell), so the offline test can run it on Windows; only the job command itself
 goes through a shell.
