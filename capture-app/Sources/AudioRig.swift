@@ -18,6 +18,7 @@ enum RigError: Error, CustomStringConvertible {
     case voiceProcessingOn
     case txFile(String)
     case engine(String)
+    case micPermission
 
     var description: String {
         switch self {
@@ -27,6 +28,7 @@ enum RigError: Error, CustomStringConvertible {
         case .voiceProcessingOn: return "inputNode.isVoiceProcessingEnabled is true"
         case .txFile(let s): return "tx file: \(s)"
         case .engine(let s): return "engine: \(s)"
+        case .micPermission: return "microphone permission not granted (Settings > RingCapture > Microphone)"
         }
     }
 }
@@ -60,6 +62,7 @@ final class AudioRig: ObservableObject {
     private var writer: TakeWriter?
     private var current: PendingTake?
     private var observers: [NSObjectProtocol] = []
+    private var engineObserver: NSObjectProtocol?
 
     private struct PendingTake {
         let take: String
@@ -93,7 +96,27 @@ final class AudioRig: ObservableObject {
             guard let self else { return }
             Task { @MainActor in self.interrupted(type: type) }
         })
+        observers.append(nc.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification,
+                                        object: s, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in self.abortTake("media services were reset") }
+        })
         dlog("app start: iOS \(UIDevice.current.systemVersion), model \(Recording.deviceModel())")
+        // Without permission the input delivers silence; ask once, refuse takes until granted.
+        let perm = AVAudioApplication.shared.recordPermission
+        switch perm {
+        case .granted:
+            dlog("record permission: granted")
+        case .denied:
+            dlog("record permission: denied")
+        case .undetermined:
+            dlog("record permission: undetermined, requesting")
+            AVAudioApplication.requestRecordPermission { granted in
+                dlog("record permission request: granted \(granted)")
+            }
+        @unknown default:
+            dlog("record permission: unknown value")
+        }
     }
 
     // MARK: session configuration (verbatim from the spec, plus log lines)
@@ -146,6 +169,7 @@ final class AudioRig: ObservableObject {
     private func start(label: String, txFile: String, txChannel: TxChannel, route: Route,
                        mic: MicSource, durationS: Int) throws {
         dlog("--- take '\(label)': tx \(txFile) ch \(txChannel.rawValue), route \(route.rawValue), mic \(mic.rawValue), \(durationS) s")
+        guard AVAudioApplication.shared.recordPermission == .granted else { throw RigError.micPermission }
         try configure(route: route, mic: mic)
         let s = AVAudioSession.sharedInstance()
         logRoute(s.currentRoute)
@@ -209,6 +233,12 @@ final class AudioRig: ObservableObject {
         let done: @Sendable () -> Void = { [weak self] in
             guard let self else { return }
             Task { @MainActor in self.finishTake() }
+        }
+        // A hardware reconfiguration stops the engine; the tap then goes quiet, so abort (D-073).
+        engineObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in self.abortTake("engine configuration changed (engine stopped)") }
         }
         input.installTap(onBus: 0, bufferSize: 4800, format: inFormat,
                          block: AudioRig.makeTap(writer: writer, done: done))
@@ -284,6 +314,10 @@ final class AudioRig: ObservableObject {
     }
 
     private func teardown() {
+        if let token = engineObserver {
+            NotificationCenter.default.removeObserver(token)
+            engineObserver = nil
+        }
         player?.stop()
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
@@ -294,12 +328,11 @@ final class AudioRig: ObservableObject {
     private func fail(_ message: String) {
         dlog("ERROR: \(message)")
         status = "error: \(message)"
-        if writer != nil || current != nil {
-            if let pending = current { Recording.deleteTake(pending.take) }
-            _ = writer?.finish()
-            writer = nil
-            current = nil
-        }
+        // Release the file before deleting it.
+        _ = writer?.finish()
+        writer = nil
+        if let pending = current { Recording.deleteTake(pending.take) }
+        current = nil
         isRecording = false
         refreshTakes()
     }

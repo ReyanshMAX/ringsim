@@ -116,7 +116,11 @@ Take rules (D-073):
   is cut. `duration_s` in the JSON = frames written / 48000.
 - Abort: a route change mid-take (the route's port types + UIDs differ from those at take
   start; a notification with the same route does not count) or an audio-session
-  interruption aborts the take, deletes its partial files and logs it.
+  interruption aborts the take, deletes its partial files and logs it. So do the two
+  events that stop the engine mid-take: `AVAudioEngineConfigurationChange` and
+  `AVAudioSession.mediaServicesWereResetNotification`.
+- Microphone permission: requested once at launch (`AVAudioApplication`); a take is
+  refused and logged unless the permission is granted (without it the input is silent).
 
 ## Bundle
 
