@@ -41,7 +41,8 @@ def tx_frame(spec: ChirpSpec, fs: int) -> np.ndarray
 def export_tx_wav(spec: ChirpSpec, fs: int, path: str) -> None
     # one tx_frame, float32 mono WAV; the capture app loops it seamlessly
 def export_sweep_wav(f0: float, f1: float, dur_s: float, fs: int, path: str) -> None
-    # log sweep for transducer response (Q-011), Hann fade 10 ms each end
+    # log sweep for transducer response (Q-011), Hann fade 10 ms each end;
+    # dur_s < 20 ms (fades overlap) raises ValueError
 
 # src/ringsim/proc/ir.py
 def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, fs_sim: int, tx: np.ndarray,

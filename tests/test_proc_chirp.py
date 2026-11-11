@@ -36,6 +36,16 @@ def test_tx_frame_zero_padded():
     assert len(f) == 600 and np.all(f[480:] == 0) and np.array_equal(f[:480], synth_chirp(spec, 48000))
 
 
+def test_tx_frame_shorter_than_chirp_refused():
+    with pytest.raises(ValueError):
+        tx_frame(ChirpSpec(18000, 22000, 0.0125, 0.010, "none"), 48000)
+
+
+def test_export_sweep_wav_too_short_refused(tmp_path):
+    with pytest.raises(ValueError):
+        export_sweep_wav(100.0, 24000.0, 0.019, 48000, str(tmp_path / "s.wav"))
+
+
 def test_export_tx_wav_round_trip(tmp_path):
     p = tmp_path / "tx.wav"
     export_tx_wav(PHONE, 48000, str(p))

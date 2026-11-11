@@ -9,7 +9,9 @@ import ringsim.proc
 
 PROC_DIR = Path(ringsim.proc.__file__).parent
 ALLOWED_THIRD_PARTY = {"numpy", "scipy"}
-FORBIDDEN = ["kwave", "torch", "smplx", "trimesh", "h5py", "yaml", "matplotlib", "manifold3d"]
+FORBIDDEN = ["kwave", "torch", "smplx", "trimesh", "h5py", "yaml", "matplotlib", "manifold3d",
+             "ringsim.geometry", "ringsim.solver", "ringsim.dataset", "ringsim.validation",
+             "ringsim.devices"]
 
 
 def _imports(path: Path):

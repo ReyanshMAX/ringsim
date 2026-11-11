@@ -50,7 +50,12 @@ def export_tx_wav(spec: ChirpSpec, fs: int, path: str) -> None:
 
 
 def export_sweep_wav(f0: float, f1: float, dur_s: float, fs: int, path: str) -> None:
-    """Log sweep f0 -> f1 for the transducer response (Q-011), Hann fade 10 ms at each end."""
+    """Log sweep f0 -> f1 for the transducer response (Q-011), Hann fade 10 ms at each end.
+
+    dur_s < 20 ms (the two fades overlap) is refused with ValueError; the spec defines no shorter sweep.
+    """
+    if dur_s < 0.020:
+        raise ValueError(f"dur_s = {dur_s} s is shorter than the two 10 ms fades")
     n = int(round(dur_s * fs))
     t = np.arange(n) / fs
     x = signal.chirp(t, f0, dur_s, f1, method="logarithmic")
