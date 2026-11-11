@@ -21,12 +21,8 @@ META_KEYS = ("schema_version", "take", "started_utc", "duration_s", "tx_file", "
              "data_source_name", "polar_pattern", "ios_version", "device_model", "label")
 
 
-def load_capture(path: str) -> tuple[np.ndarray, dict]:
-    """(stream float32 [N], meta dict) for `<take>.wav` with `<take>.json` beside it."""
-    if os.path.isdir(path):
-        raise NotImplementedError("load_capture on a session directory is not specified yet (held for a user answer)")
-    if not path.lower().endswith(".wav"):
-        raise ValueError(f"expected a .wav file, got {path!r}")
+def read_wav(path: str) -> np.ndarray:
+    """Mono float32 48 kHz samples of a WAV, exactly as stored; any other format or rate is refused."""
     fs, data = wavfile.read(path)
     if data.dtype != np.float32:
         raise ValueError(f"{path}: WAV must be float32, got {data.dtype}")
@@ -34,6 +30,31 @@ def load_capture(path: str) -> tuple[np.ndarray, dict]:
         raise ValueError(f"{path}: WAV must be mono, got shape {data.shape}")
     if fs != SAMPLE_RATE:
         raise ValueError(f"{path}: sample rate {fs} Hz, only {SAMPLE_RATE} Hz is accepted (never resampled)")
+    return data
+
+
+def load_session(path: str) -> dict:
+    """{session: session.json dict, free_air: sorted free_air_*.wav paths, takes: sorted other .wav paths}
+    for a session directory (VALIDATION.md "Capture file layout")."""
+    jpath = os.path.join(path, "session.json")
+    if not os.path.isfile(jpath):
+        raise FileNotFoundError(f"session.json missing: {jpath}")
+    with open(jpath, encoding="utf-8") as f:
+        session = json.load(f)
+    wavs = sorted(f for f in os.listdir(path) if f.lower().endswith(".wav"))
+    free = [os.path.join(path, f) for f in wavs if f.startswith("free_air_")]
+    takes = [os.path.join(path, f) for f in wavs if not f.startswith("free_air_")]
+    return {"session": session, "free_air": free, "takes": takes}
+
+
+def load_capture(path: str) -> tuple[np.ndarray, dict]:
+    """(stream float32 [N], meta dict) for `<take>.wav` with `<take>.json` beside it."""
+    if os.path.isdir(path):
+        raise NotImplementedError("load_capture on a session directory is not specified yet (held for a user answer)")
+    if not path.lower().endswith(".wav"):
+        raise ValueError(f"expected a .wav file, got {path!r}")
+    data = read_wav(path)
+    fs = SAMPLE_RATE
     jpath = os.path.splitext(path)[0] + ".json"
     if not os.path.isfile(jpath):
         raise FileNotFoundError(f"metadata file missing: {jpath}")

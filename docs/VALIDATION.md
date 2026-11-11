@@ -61,7 +61,8 @@ data/captures/<session>/
      `iphone17pro.yaml` and amend DECISIONS.md D-023.
 1. Bottom speaker (channel from step 0) → iOS `bottom` mic data source: play `sweep_16k_24k_2s.wav`, no target,
    3 takes. Output: magnitude and phase response 16–24 kHz (`validation/sweep.py`: deconvolve
-   with the known sweep, average across takes). Report the phase after removing its best-fit
+   with the known sweep, H = R·conj(S)/(|S|²+1e-3·max|S|²), each take aligned on its own direct-path delay
+   (xcorr envelope, parabolic sub-sample) before the complex average). Report the phase after removing its best-fit
    straight line (the part a delay cannot explain) over 18–22 kHz; informs Q-021.
 2. Hole-cover test: repeat one take with tape over hole x_draw 24.42 (mic 2), then one
    with tape over the right-hand port group (mic 1 candidates). The take whose in-band
@@ -83,6 +84,7 @@ profiles are with the no-plate takes (D-047).
 Metrics (`ringsim validate plate`):
 1. **Peak bin error**: in background-subtracted mean profile, bin of the plate echo
    peak (largest |magnitude| beyond bin 2). Pass: |bin_sim − bin_real| ≤ 1 at every distance.
+   Gated on the referenced profiles (D-074); the raw-profile result is reported alongside with its own flag.
 2. **Range linearity**: fit bin vs distance for real; slope within 5% of 2·fs/c.
 3. **Amplitude trend**: log peak magnitude vs log distance, sim and real slopes reported
    side by side (no pass threshold; informs Q-011).

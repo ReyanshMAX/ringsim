@@ -55,3 +55,16 @@ def test_metadata_checks(tmp_path):
 def test_directory_form_not_built(tmp_path):
     with pytest.raises(NotImplementedError):
         load_capture(str(tmp_path))
+
+
+def test_load_session(tmp_path):
+    from ringsim.validation.real import load_session
+    (tmp_path / "session.json").write_text(json.dumps({"temp_c": 21.0}))
+    for n in ("free_air_1", "free_air_2", "plate_80mm_t1"):
+        wavfile.write(str(tmp_path / f"{n}.wav"), 48000, np.zeros(4, np.float32))
+    s = load_session(str(tmp_path))
+    assert s["session"]["temp_c"] == 21.0
+    assert [p.split("\\")[-1].split("/")[-1] for p in s["free_air"]] == ["free_air_1.wav", "free_air_2.wav"]
+    assert len(s["takes"]) == 1 and s["takes"][0].endswith("plate_80mm_t1.wav")
+    with pytest.raises(FileNotFoundError):
+        load_session(str(tmp_path / "nope"))
