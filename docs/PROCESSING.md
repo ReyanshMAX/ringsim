@@ -78,8 +78,11 @@ def snapshot_weights(snap_t: np.ndarray, t: np.ndarray, interp: str = "cubic") -
     #   = (p[i+1] - p[i-1]) / (snap_t[i+1] - snap_t[i-1]) (one-sided at the two ends). Equals
     #   Catmull-Rom when snapshots are evenly spaced; the tangents are linear in the p's, so W is a
     #   fixed weight matrix. Outside [snap_t[0], snap_t[-1]] the nearest end snapshot is held.
-    # "hold": each frame uses only the snapshot at its start (the old frame-frozen D-005 model).
-    #   For comparison in validation reports only; never for datasets.
+    # "hold": zero-order hold of the latest snapshot with snap_t <= t (the first snapshot held
+    #   before snap_t[0]) (D-065). The old frame-frozen D-005 model = the caller passes only the
+    #   frame-start snapshots. Frame starts as device times (f*len(tx)/fs_device), so a sample
+    #   at a frame start takes that frame's snapshot. For comparison in validation reports only;
+    #   never for datasets.
     # S == 1 (static scene) → W = 1 everywhere.
 def rx_stream(irs: np.ndarray, snap_t: np.ndarray, pulse: np.ndarray, fs_sim: int, tx: np.ndarray,
               band: tuple[float, float], fs_device: int, n_frames: int, alpha: float = 1.0,
@@ -231,7 +234,10 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   alignment, signed profile peaks at bins 0 and 20 (±1).
 - `rx_from_ir` with an analytic IR (pulse delayed by m sim samples) returns tx delayed
   by m·fs_device/fs_sim device samples (±1 sample), amplitude within 3% inside band, for
-  fs_sim = 600 kHz and fs_device ∈ {50, 48, 44.1} kHz (D-046).
+  fs_sim = 600 kHz and fs_device ∈ {50, 48, 44.1} kHz (D-046). tx = the 600-sample chirp with
+  100 zeros on each side: a chirp that starts and ends at the array ends puts the documented
+  resampling edge error into the spectrum (in-band ratio 0.91-1.04 measured 2026-11-11; padded:
+  0.997-1.000).
 - Linearity: `rx_from_ir(a*ir1 + b*ir2) == a*rx1 + b*rx2` to 1e-5 relative; same for `rx_stream`
   over the IR stack.
 - `rx_stream` with S = 1 equals `rx_from_ir` of that IR against the tiled tx stream (steady state)
