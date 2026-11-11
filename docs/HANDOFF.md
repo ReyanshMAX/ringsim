@@ -89,6 +89,46 @@ Q-017 on/off-grid box test, Q-020 sub-cell plate-step run on T4, plate sims for 
 
 ## Seat 3 PROC
 
+Shas on main (lane files only): 5626762 physics + ChirpSpec/chirp · 8128abf ir + profile + required tests ·
+99da2d7 slow temperature-scaling test · 44b8235 review fixes (isolation subprocess also forbids ringsim.geometry /
+solver / dataset / validation / devices; tx_frame and export_sweep_wav refusals) · 0a1c2ba non-integer sample rates
+refused, synthetic-bins test on signed peaks · 871ff4a fixture bar 2 at c + (24, -6, -26) mm (user).
+
+Done: every PROCESSING.md signature. physics (C_SIM, TEMP_RANGE_C, speed_of_sound, C_MIN, C_MAX, temperature_alpha);
+chirp (ChirpSpec, synth_chirp, tx_frame, export_tx_wav, export_sweep_wav); ir (rx_from_ir, temperature_scale,
+snapshot_weights, rx_stream); profile (align_direct_path, frame_stream, cfmcw_profiles, free_air_reference,
+cfmcw_profiles_ref, magnitude, differential). Helpers private (_band_mask, _bandpass_sos, _resample_fir, _ratio).
+Imports: stdlib, numpy, scipy, ringsim.proc only.
+
+Evidence (`pytest -q <file>`, worktree at 0a1c2ba; unchanged since except the slow test's fixture):
+- tests/test_proc_chirp.py: 8 passed in 1.10s
+- tests/test_proc_ir.py: 11 passed in 2.07s
+- tests/test_proc_isolation.py: 2 passed in 3.27s
+- tests/test_proc_motion.py: 3 passed in 5.21s
+- tests/test_proc_profile.py: 3 passed in 1.04s
+- tests/test_proc_reference.py: 3 passed in 1.21s
+- tests/test_temperature_scaling.py (slow, seat 2 on Kaggle, tree 609b02a, BUILD_ID fb85a88049c9):
+  `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"`
+  -> EXIT 0; "alpha=0.98251 n_t=1275 fs_sim=576000 err_scaled=0.0455% err_unscaled=4.7786% |g|=1.01786
+  1/alpha=1.01780"; "2 passed, 12 warnings in 76.61s" (< 0.5 %; |g|·α − 1 = 6e-5 < 1 %)
+- Full suite (seat 4, main 0e66bec): 115 passed, 2 deselected, 0 skipped.
+Measured by those tests: motion differential error 0.0163 (frame-start, v 0.1, < 0.05), 0.0644 (T/2, v 0.3, < 0.10),
+hold 1.3647 (> 0.5); reference max rel L2 over 50 device responses 5.19e-3 (< 1e-2), self-reference 3.59e-3 (< 1e-2);
+rx_from_ir in-band |Y/X| 0.997-1.000 at 50/48/44.1 kHz (< 3 %); signed profile peaks at bins 1 and 19 (0 and 20, ±1).
+End to end (seats 2 + 4, not my tests): the proc chain on the real CPU and T4 p1_free shards passes freefield_check
+(raw bin 3 vs 3, rel L2 0.0521; 44.1 kHz override 0.0474).
+
+Spec changes, PROCESSING.md, each in the same commit as its code: snapshot_weights "hold" = D-065 (8128abf);
+the rx_from_ir test pads tx with 100 zeros each side (lead confirmed; unpadded in-band ratio 0.91-1.04) (8128abf);
+export_sweep_wav dur_s < 20 ms raises ValueError (44b8235); rx_from_ir / rx_stream raise on a non-integer fs_sim or
+fs_device: grid.time_axis gives 1/dt = 799999.9999999999 at dx 1.5 mm / 50 kHz, which int() truncated (0a1c2ba);
+temperature fixture bar 2 moved 1 mm per axis and c defined as 65 mm (871ff4a).
+Decisions used: D-064 (motion test: ring timing, window "none"), D-065 (hold). Deviations from spec: none left open.
+
+Open: Q-002 (ring chirp window and Ring-a-Pose details; test_proc_motion revisits it); Q-026 (reader aligns the ref
+stream on its own offset; a data/ref offset difference shifts referenced profiles by that many lags; Phase 3).
+Next: Phase 2 proc support (export-tx / sweep WAVs, real 48 kHz captures through proc) and call-site reviews.
+
 ## Seat 4 DATASET AND VALIDATION
 
 **On main (all in my lane):** 6e9942f conftest · 4ab63ef JobSpec + ShardWriter · 95e5267 writer tolerance + DATASET.md ·
