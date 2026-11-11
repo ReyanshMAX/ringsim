@@ -156,6 +156,21 @@ snapshot, and are voxelized like the phone body (box rule, Q-017).
 Phone frame (`frame: device`): hand mesh rotated by `hand_rot_deg`, then translated
 so the wrist joint sits at `hand_offset_mm`. Plate: centred on the active speaker
 port's centroid normal axis at `distance_mm` from the port, face perpendicular to the normal.
+`distance_mm` runs from the port centroid (on the body surface) to the plate's NEAR face, the face toward the
+port; the thickness `t` runs along the normal, away from the port. The same datum gives the rigid plate delay
+2d/c (lead ruling 2026-11-11, from Protocol B's "distance measured port-to-plate").
+
+Solid builders (Phase 2), in `geometry/scene.py`, device frame, metres:
+
+```python
+def box_mesh(center_m, size_m) -> trimesh.Trimesh             # axis-aligned box
+def body_meshes(body: BoxBody) -> list[trimesh.Trimesh]        # body box centred on the origin + plateau box
+                                                               # (separate meshes; occupancy ORs them)
+def rig_box_meshes(rig_boxes) -> list[trimesh.Trimesh]         # Placement.rig_boxes, {center, size} in mm
+def plate_mesh(speaker: Port, plate: dict) -> trimesh.Trimesh  # Placement.plate, rule above
+    # an axis-aligned normal and w == h only; anything else raises NotImplementedError until
+    # the in-plane axes of [w, h] are specified (seat 2 question S2-6)
+```
 
 Phone with the bottom pair (D-023): the hand sits beyond the bottom edge (−y side);
 `hand_offset_mm` is measured from the device centroid, so a hand 100 mm from the edge
