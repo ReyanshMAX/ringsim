@@ -83,7 +83,10 @@ def _frames(path: str, tx: np.ndarray, band: tuple[float, float]) -> tuple[np.nd
     """(frames [T, len(tx)] on this recording's own offset, the stream)."""
     stream, _ = load_capture(path)
     off = align_direct_path(stream, tx, band, SAMPLE_RATE)
-    return frame_stream(stream, off, len(tx)), stream
+    frames = frame_stream(stream, off, len(tx))
+    if len(frames) < 3:                                # frame 0 is dropped, and a profile set needs >= 2 frames
+        raise ValueError(f"{os.path.basename(path)}: only {len(frames)} frames after alignment, need >= 3")
+    return frames, stream
 
 
 def plate_inputs(sim_dir: str, session_dir: str) -> tuple[dict, dict, float, int, dict]:
@@ -147,6 +150,6 @@ def plate_report(sim_dir: str, session_dir: str) -> dict:
     sim, real, temp_c, fs, ex = plate_inputs(sim_dir, session_dir)
     out = plate_metrics(sim, real, fs, temp_c)
     out.update({"temp_c": temp_c, "fs_hz": fs, "distances_mm": sorted(real["ref"]), "n_takes": ex["n_takes"],
-                "noise_floor": noise_floor(ex["noise_profiles"], skip_frames=0),
+                "noise_floor": noise_floor(ex["noise_profiles"], skip_frames=0), "noise_floor_basis": "pooled over takes",
                 "free_air_drift": free_air_drift(ex["drift_start"], ex["drift_end"])})
     return out

@@ -126,3 +126,16 @@ def test_missing_pieces_raise(rig, tmp_path):
         plate_report(sim, ses)
     with pytest.raises(FileNotFoundError):
         plate_report(str(tmp_path / "empty"), ses)
+
+
+def test_truncated_take_raises_naming_it(rig):
+    sim, ses = rig
+    p = os.path.join(ses, "plate_80mm_t1.wav")
+    x = wavfile.read(p)[1]
+    wavfile.write(p, 48000, x[:900])                   # 1 frame
+    with pytest.raises(ValueError, match="plate_80mm_t1"):
+        plate_report(sim, ses)
+
+
+def test_report_labels_noise_floor_pooled(rig):
+    assert plate_report(*rig)["noise_floor_basis"] == "pooled over takes"
