@@ -1,0 +1,13 @@
+# Read by tools/kaggle_run.py. Edit here, not in the script.
+[kaggle]
+username = ""                 # empty: KAGGLE_USERNAME env, else detected from the logged-in CLI
+code_dataset = "ringsim-code" # private; holds exactly one wheel + BUILD_ID (D-034, D-038)
+assets_dataset = "ringsim-assets"   # private; MANO + pose npz. Never public (license, Q-008)
+use_assets = false            # set true after the assets dataset exists (needed from Phase 3)
+accelerator = "NvidiaTeslaT4" # pass on every push; P100 cannot run the k-Wave CUDA binary (D-016)
+poll_s = 30
+timeout_min = 120
+
+[run]
+# {job} and {out} are filled in inside the kernel. Phase 1 builds this CLI.
+cmd = "ringsim sim --job {job} --gpu --out-dir {out}"

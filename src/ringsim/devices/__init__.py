@@ -1,1 +1,0 @@
-"""Device configs (DEVICES.md)."""

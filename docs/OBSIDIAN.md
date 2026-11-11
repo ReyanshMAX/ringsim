@@ -14,6 +14,7 @@ browsed. Every Claude Code session that changes anything ends by updating the va
 - No vault git commits; the vault's own git is the user's.
 - No writes outside `03-competitions/isef-ring-pose/` and `_attachments/` without asking.
 - No code, data, shards, or captures in the vault. Small PNG figures only (≤1 MB each).
+- With several seats running, only the lead seat writes the vault (log, overview, sync). Other seats report in their `docs/HANDOFF.md` section and the room.
 
 ## Location
 
@@ -68,7 +69,7 @@ Append under today's heading; create the heading if missing. Never edit past ent
 - Decided: none
 - Disproven: none
 - Blocked: Q-010 still open
-- Next: `ringsim kaggle push --job jobs/p1_free.yaml`
+- Next: `python tools/kaggle_run.py run jobs/p1_free.yaml`
 ```
 
 Every number in a log entry comes from a command output or a file in the repo, with the

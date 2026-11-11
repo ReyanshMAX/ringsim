@@ -5,3 +5,6 @@ dist/
 build/
 data/
 .pytest_cache/
+seats.conf
+.env
+.env.*

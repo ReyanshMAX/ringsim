@@ -4,6 +4,8 @@ Unresolved. Do not resolve these silently — ask, then move the answer to
 DECISIONS.md (or the relevant config) and delete the entry here. Config fields
 that depend on an entry are written as `TBD(Q-xxx)` and raise at load time.
 
+Resolved 2026-11-11 and removed: Q-024 (forearm end, solids at the grid face → D-053).
+Resolved 2026-11-10 and removed: Q-018 (→ D-052).
 Resolved 2026-10-14 and removed: Q-010 (→ D-035), Q-015 (→ D-036).
 Resolved 2026-10-11 and removed: Q-003 (labels → D-025), Q-004 (phone geometry →
 DEVICES.md from Apple drawings), Q-012 (phone chirp → D-022), Q-013 (sideload → D-027).
@@ -30,7 +32,8 @@ Still unknown:
 Known: §3.4 (see PROCESSING.md "Ring-a-Pose parity"). Unknown: chirp window/taper and
 sweep direction, causal vs zero-phase band-pass, signed vs magnitude correlation in echo
 frames, whether t0 is re-detected per frame or fixed per session.
-- **Blocking:** Phase 5 parity criterion
+- **Blocking:** Phase 5 parity criterion. Applies to the raw profiles only: the referenced profiles
+  used as sim model input (D-042) do not depend on these choices except the sweep direction.
 - **Options:** their code if released; ask authors; otherwise keep current choices and
   log them as decisions with "unverified vs Ring-a-Pose" in the reason
 - **Depends on it:** `ring.yaml` chirp window, `proc.cfmcw_profiles`
@@ -57,6 +60,10 @@ Three unknowns, all settled by Protocol A (VALIDATION.md):
 ## Q-007: Dataset size target
 
 - **Blocking:** no — needed before Phase 5 bulk generation
+- **Inputs:** `python tools/kaggle_run.py bench` (ring-sized grids on T4, one and two GPUs;
+  STATUS.md Measurements) gives snapshots per GPU-hour now, before any package code. GPU budget is
+  the user's call later: if results look promising, more compute will be found, so the bench
+  result is not compared against a quota here (user decision 2026-11-10).
 - **Options:** Phase 5 throughput × available GPU hours; both T4s of "GPU T4 x2" in
   parallel (INFRA.md) doubles throughput; reference point: Ring-a-Pose
   trained user-independent models on ~18 h of data from 16 hands (§6.3.1), ≈ 5.4 M
@@ -114,3 +121,70 @@ that are multiples of dx.
   `mesh.contains`; or nudge the grid origin by a fixed sub-cell offset; or treat on-face
   points as solid via a signed-distance tolerance
 - **Depends on it:** `geometry.voxelize.occupancy`
+
+## Q-019: Snapshot spacing threshold `snapshot_disp_mm` (D-041)
+
+Max MANO-vertex displacement allowed between consecutive IR snapshots. Known (scratch check
+2026-11-10, analytic point reflectors, not k-Wave): ≤ 1.8 mm gives ≤ 7 % differential-profile
+error up to 0.59 m/s; 1.2 mm gives 2 %. Unknown: how much error matters downstream, and the cost,
+which depends on how fast the pose sources move.
+- **Blocking:** Phase 4 sequence jobs (`motion.snapshot_disp_mm` is TBD and raises)
+- **Options:** start from 1.8 mm; tighten if Protocol C stroke asymmetry disagrees; loosen only with
+  evidence that the model does not care
+- **Depends on it:** snapshots per frame, frames per GPU-hour (Q-007)
+
+## Q-020: Voxel occupancy that follows sub-cell motion
+
+Binary `mesh.contains` occupancy does not change when a surface moves less than about half a cell.
+At median finger speed a surface moves ~0.2 mm per frame (dx = 2 mm), so sim differentials for slow
+motion are quantized, and snapshot interpolation (D-041) cannot fix snapshots that jump in whole
+cells. D-036's smoothing was calibrated on binary occupancy.
+- **Blocking:** Phase 3 (moving sequences, convergence differentials); resolved inside Phase 2
+- **Options:** inside-fraction from supersampling each cell (e.g. 4³ points); signed distance through
+  a smooth step about one cell wide; analytic fractions for boxes (would also settle Q-017).
+  Separately: how a fraction maps to ρ (linear in ρ gives 84× air at 10 % fill; linear in log ρ or
+  in impedance are alternatives), and how the port-voxel check reads a fraction. D-036 only checked
+  reflection strength; the smoothed density is already ~20× air one cell outside the surface, so
+  the effective reflecting surface may sit ½–1 cell out. The Phase 2 check measures that offset.
+- **Depends on it:** `geometry.voxelize.build_medium`, D-036, convergence study
+
+## Q-021: Device-residual randomization after referencing (D-042)
+
+The free-air reference cancels the device response common to all paths. Left over: transducer
+directivity (echoes arrive from other directions than the direct path), paths only the real device
+has (sound through the ring's plastic body), drift between the reference and the data.
+- **Blocking:** Phase 5 read-time DR (`device residual` row in DATASET.md is TBD and raises)
+- **Options:** size from Protocol A residual phase, Protocol B signed-shape r, free-air drift
+  between session start and end, and the ring checks; a zero range is allowed only if those show
+  the residual is below the static noise floor
+- **Depends on it:** `dataset.randomize`
+
+## Q-022: Near-field and ring checks before bulk generation (PROPOSAL, not decided)
+
+Problem: the phone tests check echoes from a hand ~10 cm from a still phone. On the ring the speaker
+is millimetres from skin, moves with the finger, and is often covered by it. Nothing checks that
+regime against real measurements until the ring hardware exists, which is planned last, after the
+expensive bulk dataset. If the sim is wrong there, the bulk data is wasted compute.
+Proposal (audit 2026-11-10; the user asked to keep it as a proposal only):
+- Protocol D, near-field phantoms, on the phone (would sit in Phase 3): wooden dowels Ø18 mm
+  (finger-sized) at 0, 5, 10, 20, 40 mm from the bottom-edge ports; a pair 2 mm apart (adjacent
+  fingers); one pressed over the mic hole (covered port). Dowels are exact cylinders, so the sim has
+  no hand-model uncertainty. Compare referenced signed shape, peak bin, and the differential for a
+  2 mm move, sim vs real; pass thresholds from real-vs-real repeatability.
+- Method change: split Phase 5 into a pilot batch, then a minimal ring prototype (3D-printed band +
+  the two transducers on the Teensy rig) captured and compared with the sim of that ring, then bulk
+  generation. Replaces "hardware last" with "minimal ring before bulk, full hardware later".
+- D-006 would get a note: an identical code path is necessary for phone results to transfer to the
+  ring, not sufficient.
+- **Blocking:** nothing yet; decide before Phase 5 bulk generation
+- **Depends on it:** BUILD Phases 3 and 5, VALIDATION.md, the project method order
+
+## Q-023: Wrist-bend randomization ranges (only if D-051 extends the forearm domain)
+
+MANO has no wrist joint relative to the forearm; the forearm is extruded straight along the hand.
+If the Phase 5 forearm-length check shows the forearm matters, wrist flexion/extension and
+radial/ulnar deviation become per-sequence DR (forearm prism rotated at the wrist loop).
+- **Blocking:** Phase 5, only if D-051's check fails
+- **Options:** ranges from InterHand2.6M / GRAB global orientation relative to the arm if available;
+  Ring-a-Pose's tested orientations (§6.3.4) as the extremes
+- **Depends on it:** `dataset.randomize`, GEOMETRY forearm
