@@ -67,4 +67,10 @@ def load_capture(path: str) -> tuple[np.ndarray, dict]:
         raise ValueError(f"{jpath}: missing keys {missing}")
     if meta["sample_rate"] != fs:
         raise ValueError(f"{jpath}: sample_rate {meta['sample_rate']} disagrees with the WAV's {fs}")
+    spath = os.path.join(os.path.dirname(os.path.abspath(path)), "session.json")
+    session = None
+    if os.path.isfile(spath):
+        with open(spath, encoding="utf-8") as f:
+            session = json.load(f)
+    meta["session"] = session                      # session.json beside the take, None if absent (D-074 ruling)
     return data, meta

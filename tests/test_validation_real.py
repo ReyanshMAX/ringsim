@@ -68,3 +68,11 @@ def test_load_session(tmp_path):
     assert len(s["takes"]) == 1 and s["takes"][0].endswith("plate_80mm_t1.wav")
     with pytest.raises(FileNotFoundError):
         load_session(str(tmp_path / "nope"))
+
+
+def test_meta_session_attached(tmp_path):
+    x = np.zeros(10, np.float32)
+    p = _write(tmp_path, x, meta=_meta())
+    assert load_capture(p)[1]["session"] is None
+    (tmp_path / "session.json").write_text(json.dumps({"temp_c": 20.5}))
+    assert load_capture(p)[1]["session"] == {"temp_c": 20.5}
