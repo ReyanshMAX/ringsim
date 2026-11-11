@@ -117,6 +117,24 @@ def freefield_check(path: str, seq_id: str, dev_override: DeviceConfig | None = 
     # ideal monopole H = j·2πf·e^{−2πifτ}, τ = 0.100/c, through the same proc path; gates on mode="raw",
     # reports mode="ref"; keys: peak bins, rel L2, gain phase, arrival-time error, pass flags
 def compare_ir(path_a: str, path_b: str, seq_id: str) -> float   # relative L2 of the two shards' IRs
+
+# src/ringsim/validation/real.py (Phase 2, D-074): float32 mono 48 kHz only, never resampled; stream unaligned
+def load_capture(wav: str) -> tuple[np.ndarray, dict]   # meta = <take>.json (schema v1, CAPTURE_APP.md);
+                                                        # meta["session"] = session.json or None; a dir raises
+def load_session(dir: str) -> dict                      # {session, free_air: sorted free_air_*.wav, takes: sorted}
+# src/ringsim/validation/sweep.py (Phase 2, D-068): per take H = R·conj(S)/(|S|²+1e-3·max|S|²), each take aligned
+# on its own direct-path delay, then complex-averaged across takes
+def response(sweep_wav: str, capture_wavs: list[str]) -> tuple[np.ndarray, np.ndarray]   # (freqs Hz, mag_db)
+def phase_residual(sweep_wav, capture_wavs, band=(18000.0, 22000.0)) -> tuple[np.ndarray, np.ndarray]
+    # (freqs, unwrapped phase minus its best-fit line, rad) in band
+# src/ringsim/validation/metrics.py (Phase 2, D-069, D-070, D-074)
+def plate_metrics(sim: dict[str, dict[int, np.ndarray]], real: dict[str, dict[int, np.ndarray]],
+                  fs_hz: float, temp_c: float) -> dict
+    # outer key "ref" | "raw"; inner distance_mm -> [frames, n_bins], background-subtracted, frame 0 already skipped;
+    # peak bin + error + pass per mode (the Phase 2 box is gated on "ref"), range linearity vs
+    # 2·fs/speed_of_sound(temp_c), amplitude trend, signed shape {delta_bins, r} per mode and distance
+def noise_floor(profiles: np.ndarray, *, skip_frames: int) -> float   # median_k ||P_k − mean P|| / ||mean P||
+def free_air_drift(start: np.ndarray, end: np.ndarray) -> dict
 ```
 
 ## CLI
@@ -132,8 +150,11 @@ ringsim sim      --job jobs/<job>.yaml [--gpu] [--frames a:b] [--out-dir DIR]
 ringsim profile  --shard <h5> --seq <id> --out <png>            # plot profiles + differential; prints
                                                                  # freefield_check as JSON (D-060)
 ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/
+                                                                 # writes phone_tx.wav + sweep_16k_24k_2s.wav (D-077)
 ringsim real     --capture data/captures/<name>.wav --device iphone17pro --out <png>
-ringsim validate plate|hand --sim <h5> --real <dir> --out reports/<name>/
+ringsim validate plate|hand --sim <h5|dir> --real <dir> --out reports/<name>/
+                                                                 # plate: --sim = dir of per-distance "plate" shards
+                                                                 # + one "background" shard (D-078)
 ringsim converge --job jobs/converge.yaml --dx 2.0,1.5,1.0 [--ref-dx 0.75]   # SOLVER.md
 ```
 

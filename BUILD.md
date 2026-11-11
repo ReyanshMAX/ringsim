@@ -89,9 +89,13 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 
 **Interface contracts established**
 ```
-src/ringsim/validation/real.py     load_capture(dir_or_wav) -> (stream: np.ndarray, meta: dict)
-src/ringsim/validation/sweep.py    response(sweep_wav, capture_wavs) -> (freqs, mag_db)
-src/ringsim/validation/metrics.py  plate_metrics(sim_profiles, real_profiles, distances) -> dict
+src/ringsim/validation/real.py     load_capture(wav) -> (stream: np.ndarray, meta: dict)          # D-074
+                                   load_session(dir) -> {session, free_air, takes}
+src/ringsim/validation/sweep.py    response(sweep_wav, capture_wavs) -> (freqs, mag_db)           # D-068
+                                   phase_residual(sweep_wav, capture_wavs, band) -> (freqs, resid_rad)
+src/ringsim/validation/metrics.py  plate_metrics(sim, real, fs_hz, temp_c) -> dict               # D-069, D-074
+                                   noise_floor(profiles, *, skip_frames) -> float
+                                   free_air_drift(start, end) -> dict
 capture-app/                       metadata JSON schema v1
 ```
 
