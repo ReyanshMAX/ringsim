@@ -10,7 +10,7 @@ set -euo pipefail
 
 WT="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$WT"
-PROJECT="$(basename "$(git rev-parse --show-toplevel)")"
+PROJECT="$(basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")")"
 OUT="$WT/nextsessions/NEXT-PROMPTS.md"
 DESK="$HOME/Desktop/$(echo "$PROJECT" | tr '[:lower:]' '[:upper:]')-NEXT-PROMPTS.md"
 SEATS="${SEATS:-1 2 3 4 5 6}"
