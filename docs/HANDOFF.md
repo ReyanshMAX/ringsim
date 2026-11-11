@@ -33,7 +33,25 @@ Room: `#ringsim`. Main at round start: ea6dfc5.
 
 ## Seat 1 LEAD
 
-(written at round end)
+Round result: **Phase 1 done**; all 12 BUILD.md Phase 1 boxes checked, each with its command and output inline (last: ef926ef).
+
+- Shas: 8db4701 (this file, bench box, `private-commit.sh` mktemp fix for Git Bash) · a419a35, 22af4bc, 214ff1c, 486a3c7
+  (D-054..D-066, Q-025, Q-026, ARCHITECTURE contracts) · 7a62b44, d2403ce, 0e66bec, ef926ef (boxes, STATUS).
+- Decided with the user this round: D-054 (slow tests: tests tar embedded in the kernel script; first form superseded
+  the same day), D-055 `load_device_yaml`, D-056 `ref_ir` always its own call, D-057 monopole gates on raw, D-058 the
+  44.1 kHz override (window rule reworded to match the reader), D-059 JobSpec in dataset/, D-060 free-field API and
+  seq_id "free", D-061 Medium.occ + port_covered, D-062 CPU limit by total cells, D-063 `wall_s` = kspaceFirstOrder3D,
+  D-064 motion-test window none, D-065 "hold" = zero-order hold, D-066 run-time failures and `nonfinite_ir`. Spec fix:
+  bar 2 of the slow-test fixture moved 1 mm (PROCESSING.md).
+- Open, for later phases: Q-025 (`--frames` meaning, Phase 3/4), Q-026 (sim reference offset; ask the user before
+  Phase 3).
+- Process: the user talks only to the lead. Every seat question goes to the lead in `#ringsim`, and answers come back
+  tagged "USER ANSWER". This is in the canonical RULES of every round-2 PASTE file. I standardized the RULES block
+  across all five files (seat 4's text + "the capture app is seat 5's").
+- Seat 5 launched for round 2: capture app (`nextsessions/PASTE-SEAT5-2026-11-11.txt`).
+- Outside the repo: claude-multiplayer's `server.ts` / `host.ts` patched locally (`fileURLToPath` for the broker path;
+  `new URL(...).pathname` gave "/C:/..." on Windows). A `git pull` there undoes it.
+- Vault: log entry for 2026-11-11, overview status (Phase 2 of 5); `python scripts/obsidian_sync.py` exit 0.
 
 ## Seat 2 SIM
 
