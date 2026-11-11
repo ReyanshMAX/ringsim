@@ -13,12 +13,97 @@ def _not_built(name: str, phase: int) -> None:
     raise NotImplementedError(f"ringsim {name}: built in Phase {phase} (BUILD.md)")
 
 
+CPU_MAX_CELLS = 96 ** 3          # D-062: sim without --gpu refuses Nx*Ny*Nz (excluding PML) above this
+SCENE_PHASE = {"plate": 2, "hand": 3}
+
+
+class CpuGridTooLarge(RuntimeError):
+    """D-062 refusal: the grid is too large for a CPU run."""
+
+
 def cmd_sim(args: argparse.Namespace) -> int:
-    raise NotImplementedError("ringsim sim: Phase 1, not built yet")
+    import math
+    from pathlib import Path
+
+    from ringsim.dataset.jobspec import load_job
+    from ringsim.dataset.writer import ShardWriter
+    from ringsim.devices.config import load_device
+    from ringsim.geometry.scene import free_scene
+    from ringsim.geometry.voxelize import SolidNearGridFace, build_medium, save_medium_png
+    from ringsim.proc.physics import C_SIM
+    from ringsim.solver.constants import DOMAIN_MARGIN_M
+    from ringsim.solver.kwave_runner import medium_time_axis, run_ir
+
+    job = load_job(args.job)
+    if job.scene in SCENE_PHASE:
+        _not_built(f"sim scene {job.scene}", SCENE_PHASE[job.scene])
+    if job.scene != "free":
+        raise ValueError(f"unknown scene {job.scene!r}")
+    if args.frames is not None:
+        raise NotImplementedError("--frames on a static scene: pending the lead (CLI Q-a)")
+    dev = load_device(job.device)
+    out_dir = Path(args.out_dir) if args.out_dir else Path("data") / "shards"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    seq_id = "free"                                   # D-060
+
+    shard = out_dir / f"{job.job_id}.h5"
+    try:
+        medium = build_medium(free_scene(dev), job.dx_m, C_SIM, DOMAIN_MARGIN_M)
+    except SolidNearGridFace as e:                    # GEOMETRY.md rejection rule (D-053)
+        with ShardWriter(str(shard), job, dev) as w:
+            w.fail_sequence(seq_id, e.reason)
+        print(f"{seq_id} failed: {e}", flush=True)
+        return 1
+    cells = math.prod(medium.rho.shape)
+    if not args.gpu and cells > CPU_MAX_CELLS:
+        raise CpuGridTooLarge(f"grid {medium.rho.shape} = {cells} cells > 96^3: too large for the CPU; run it on a "
+                              f"T4 through `python tools/kaggle_run.py run {args.job}` (D-062)")
+    save_medium_png(medium, out_dir / f"{job.job_id}_medium.png")
+    _, n_t, k = medium_time_axis(medium, dev.range_window_m, dev.fs_hz)
+    print(f"{job.job_id}: grid {medium.rho.shape}, dx {job.dx_m * 1e3:.2f} mm, n_t {n_t}, k {k}, "
+          f"{'GPU' if args.gpu else 'CPU'}", flush=True)
+
+    attrs = {"source": job.poses["source"], "n_frames": job.n_frames, "seed": job.seed}
+    with ShardWriter(str(shard), job, dev) as w:
+        w.begin_sequence(seq_id, attrs, None, n_t)
+        res = run_ir(medium, dev.range_window_m, dev.fs_hz, args.gpu)
+        w.write_snapshot(seq_id, 0, res, port_covered=medium.port_covered)
+        print(f"{seq_id} snapshot 0: wall_s {res.wall_s:.2f}", flush=True)
+        # D-056: ref_ir is always its own call of the device-only scene, even where it equals the sim scene
+        ref_medium = build_medium(free_scene(dev), job.dx_m, C_SIM, DOMAIN_MARGIN_M)
+        ref = run_ir(ref_medium, dev.range_window_m, dev.fs_hz, args.gpu)
+        w.write_ref_ir(seq_id, ref)
+        print(f"{seq_id} ref_ir: wall_s {ref.wall_s:.2f}", flush=True)
+    print(f"wrote {shard}", flush=True)
+    return 0
 
 
 def cmd_profile(args: argparse.Namespace) -> int:
-    raise NotImplementedError("ringsim profile: Phase 1, not built yet")
+    import json
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from ringsim.dataset.reader import load_sequence
+    from ringsim.validation.freefield import freefield_check
+
+    fig, ax = plt.subplots(2, 2, figsize=(12, 7), squeeze=False)
+    for col, mode in enumerate(("raw", "ref")):
+        s = load_sequence(args.shard, args.seq, None, None, None, mode=mode)
+        for t in range(s.profiles.shape[0]):
+            ax[0, col].plot(s.profiles[t], lw=0.8)
+        ax[0, col].set_title(f"{args.seq}: {mode} profiles ({s.profiles.shape[0]} frames)")
+        ax[0, col].set_xlabel("range bin")
+        if s.diff.shape[0]:
+            ax[1, col].imshow(s.diff.T, aspect="auto", origin="lower", cmap="RdBu_r")
+        ax[1, col].set_title(f"{mode} differential [{s.diff.shape[0]} x {s.diff.shape[1]}]")
+        ax[1, col].set_xlabel("frame"); ax[1, col].set_ylabel("range bin")
+    fig.tight_layout()
+    fig.savefig(args.out, dpi=100)
+    plt.close(fig)
+    print(json.dumps(freefield_check(args.shard, args.seq), indent=1))   # D-060
+    return 0
 
 
 def cmd_export_tx(args: argparse.Namespace) -> int:

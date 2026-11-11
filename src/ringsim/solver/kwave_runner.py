@@ -95,12 +95,17 @@ def _simulate_timed(medium: Medium, dt: float, n_t: int, gpu: bool) -> tuple[np.
     return ir, pulse, wall
 
 
+def medium_time_axis(medium: Medium, range_window_m: float, fs_device: int) -> tuple[float, int, int]:
+    """grid.time_axis with d_direct = distance between the nearest speaker and mic voxels (what run_ir uses)."""
+    d_direct = medium.dx * min(float(np.linalg.norm(np.subtract(s, m)))
+                               for s in medium.src_idx for m in medium.mic_idx)
+    return time_axis(medium.dx, range_window_m, fs_device, d_direct)
+
+
 def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> SimResult:
     """Impulse response at C_SIM for one static medium (SOLVER.md)."""
     if medium.c != C_SIM:
         raise ValueError(f"run_ir needs medium.c == C_SIM = {C_SIM} (D-037), got {medium.c}")
-    d_direct = medium.dx * min(float(np.linalg.norm(np.subtract(s, m)))
-                               for s in medium.src_idx for m in medium.mic_idx)
-    dt, n_t, _ = time_axis(medium.dx, range_window_m, fs_device, d_direct)
+    dt, n_t, _ = medium_time_axis(medium, range_window_m, fs_device)
     ir, pulse, wall = _simulate_timed(medium, dt, n_t, gpu)
     return SimResult(ir=ir, pulse=pulse, fs_sim=1.0 / dt, wall_s=wall)

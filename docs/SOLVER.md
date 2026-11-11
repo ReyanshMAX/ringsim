@@ -126,6 +126,10 @@ def simulate(medium: Medium, dt: float, n_t: int, gpu: bool) -> tuple[np.ndarray
     return np.asarray(out["p"]).reshape(n_t, len(medium.mic_idx)).mean(1).astype(np.float32), pulse
 ```
 
+`medium_time_axis(medium, range_window_m, fs_device) -> (dt, n_t, k)` is the first three lines of `run_ir`
+(d_direct from the nearest speaker and mic voxels, then `time_axis`); `ringsim sim` calls it to size the shard
+before the first k-Wave call.
+
 Speaker/mic coincidence: if any `src_idx` equals any `mic_idx` (possible on a ring at coarse dx),
 raise `PortCollision`; never silently shift a port.
 
