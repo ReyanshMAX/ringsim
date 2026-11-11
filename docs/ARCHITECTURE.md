@@ -48,7 +48,8 @@ comes from the session's free-air capture.
 # src/ringsim/devices/config.py
 # Port, BoxBody, RingBody, DeviceConfig: full definitions in DEVICES.md
 # ChirpSpec: defined in ringsim.proc.chirp (PROCESSING.md)
-def load_device(name: str) -> DeviceConfig  # raises on any TBD(Q-xxx)
+def load_device(name: str) -> DeviceConfig  # raises on any TBD(Q-xxx); reads devices/<name>.yaml, calls load_device_yaml
+def load_device_yaml(text: str) -> DeviceConfig  # same rules; the reader rebuilds a shard's device from attrs (D-055)
 
 # src/ringsim/geometry/poses.py
 @dataclass
@@ -97,6 +98,16 @@ def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> 
 
 # src/ringsim/proc/*  — see PROCESSING.md for full signatures
 # src/ringsim/dataset/* — see DATASET.md
+# src/ringsim/dataset/jobspec.py (D-059)
+@dataclass
+class JobSpec: ...                          # the JobSpec YAML below, mm converted to SI at load
+def load_job(path: str) -> JobSpec          # raises on any TBD(Q-xxx)
+
+# src/ringsim/validation/freefield.py (Phase 1, D-057, D-060); seq_id for scene free is "free"
+def freefield_check(path: str, seq_id: str, dev_override: DeviceConfig | None = None) -> dict
+    # ideal monopole H = j·2πf·e^{−2πifτ}, τ = 0.100/c, through the same proc path; gates on mode="raw",
+    # reports mode="ref"; keys: peak bins, rel L2, gain phase, arrival-time error, pass flags
+def compare_ir(path_a: str, path_b: str, seq_id: str) -> float   # relative L2 of the two shards' IRs
 ```
 
 ## CLI
@@ -104,7 +115,8 @@ def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> 
 ```
 ringsim sim      --job jobs/<job>.yaml [--gpu] [--frames a:b] [--out-dir DIR]
                                                                  # writes <DIR, default data/shards>/<job_id>.h5
-ringsim profile  --shard <h5> --seq <id> --out <png>            # plot profiles + differential
+ringsim profile  --shard <h5> --seq <id> --out <png>            # plot profiles + differential; prints
+                                                                 # freefield_check as JSON (D-060)
 ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/
 ringsim real     --capture data/captures/<name>.wav --device iphone17pro --out <png>
 ringsim validate plate|hand --sim <h5> --real <dir> --out reports/<name>/
