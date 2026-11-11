@@ -68,13 +68,14 @@ def test_plate_on_speaker_axis(phone, d):
     np.testing.assert_allclose([hi[0] - lo[0], hi[2] - lo[2]], [100, 100], atol=1e-9)
 
 
-def test_plate_refuses_open_cases():
+def test_plate_refuses_unspecified_cases():
     spk = Port(name="s", kind="speaker", points_mm=((0.0, 0.0, 0.0),), normal=(0.0, 0.6, 0.8))
-    with pytest.raises(NotImplementedError, match="S2-6"):
+    with pytest.raises(NotImplementedError, match="normal along y only"):
         plate_mesh(spk, {"size_mm": [100, 100, 5], "distance_mm": 80})
-    spk = Port(name="s", kind="speaker", points_mm=((0.0, 0.0, 0.0),), normal=(0.0, -1.0, 0.0))
-    with pytest.raises(NotImplementedError, match="S2-6"):
+    spk = Port(name="s", kind="speaker", points_mm=((0.0, 0.0, 0.0),), normal=(1.0, 0.0, 0.0))
+    with pytest.raises(NotImplementedError, match="normal along y only"):
         plate_mesh(spk, {"size_mm": [100, 80, 5], "distance_mm": 80})
+    spk = Port(name="s", kind="speaker", points_mm=((0.0, 0.0, 0.0),), normal=(0.0, -1.0, 0.0))
     with pytest.raises(ValueError):
         plate_mesh(spk, {"size_mm": [100, 100, 0], "distance_mm": 80})
 

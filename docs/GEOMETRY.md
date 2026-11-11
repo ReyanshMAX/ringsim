@@ -153,6 +153,18 @@ class Placement:
 Rig boxes are added to the scene as solids in every snapshot, including the device-only reference
 snapshot, and are voxelized like the phone body (box rule, Q-017).
 
+`Placement.from_job(d: dict | None) -> Placement` reads the JobSpec `placement` block (mm stays mm); unknown keys,
+a plate without exactly `size_mm` [w, h, t] + `distance_mm`, or a rig box without exactly `center` + `size` raise.
+
+Box scenes (Phase 2), `geometry/scene.py`. `Scene.boxes: list[(center_m, size_m)]` holds axis-aligned solids,
+voxelized analytically (Voxelization step 3); `free_scene` leaves it empty.
+- `device_scene(dev, placement) -> Scene`: body + plateau + rig boxes, no plate, no hand. The `ref_ir` scene of a
+  plate job (D-042, D-056).
+- `plate_scene(dev, placement) -> Scene`: `device_scene` + the plate. `placement.plate = None` is the Protocol B
+  background (phone + clamp, D-047). seq_id `plate`, or `background` when the plate is null (D-071, D-078).
+- Plate in-plane axes: `size_mm` [w, h, t] → w along device x, h along device z, t along the normal (D-071). That
+  names a normal along y only; `plate_mesh` raises for any other normal.
+
 Phone frame (`frame: device`): hand mesh rotated by `hand_rot_deg`, then translated
 so the wrist joint sits at `hand_offset_mm`. Plate: centred on the active speaker
 port's centroid normal axis at `distance_mm` from the port, face perpendicular to the normal.
@@ -168,8 +180,7 @@ def body_meshes(body: BoxBody) -> list[trimesh.Trimesh]        # body box centre
                                                                # (separate meshes; occupancy ORs them)
 def rig_box_meshes(rig_boxes) -> list[trimesh.Trimesh]         # Placement.rig_boxes, {center, size} in mm
 def plate_mesh(speaker: Port, plate: dict) -> trimesh.Trimesh  # Placement.plate, rule above
-    # an axis-aligned normal and w == h only; anything else raises NotImplementedError until
-    # the in-plane axes of [w, h] are specified (seat 2 question S2-6)
+    # w -> x, h -> z, t along the normal (D-071): a normal along y only, else NotImplementedError
 ```
 
 Phone with the bottom pair (D-023): the hand sits beyond the bottom edge (−y side);
@@ -266,8 +277,16 @@ def build_medium(scene, dx, c, margin_m) -> Medium:
     #    the forearm is voxelized only where it falls inside that bbox (D-031)
     #    margin_m from SOLVER.md domain rule (air beyond solids is not needed:
     #    PML absorbs outgoing waves, and only solids reflect)
+    #    origin snapped to the device-frame lattice (D-075): origin = floor((min - margin_m)/dx)*dx per axis,
+    #    so every scene of a device (plate steps, the device-only reference) shares one lattice and the body and
+    #    port voxels are identical across them; the air margin is margin_m .. margin_m + dx
     # 2. grid dims via solver.grid.fast_dims(); grid centres x_i = origin + i*dx
-    # 3. occupancy: for each mesh, candidate points inside mesh AABB only,
+    # 3. occupancy, two kinds of solid (D-067, USER ANSWER 2026-11-11; Q-017 resolved, Q-020 for boxes):
+    #    Scene.boxes (axis-aligned: phone body, plateau, rig boxes, plate) -> frac = volume of the UNION of the
+    #    boxes inside each cell / cell volume, analytic (boxes cut on their edge coordinates into disjoint pieces,
+    #    per-axis overlaps multiplied). frac is continuous in every face position: no tie at a face on a voxel
+    #    centre. Scene.meshes (hands, Phase 3): binary as below. With both: frac = max(box frac, mesh binary).
+    #    Meshes: for each mesh, candidate points inside mesh AABB only,
     #    inside test = generalized winding number >= 0.5 (libigl fast_winding_number; abi3 wheels
     #    exist for Python 3.13 on Windows and Linux, checked 2026-11-10), not mesh.contains: MANO
     #    self-intersects in fists, and a ray-crossing test counts a point inside two overlapping parts
@@ -280,14 +299,15 @@ def build_medium(scene, dx, c, margin_m) -> Medium:
     #    single static hand frames), never for moving sequences.
     # 3b. guard (D-053): no solid voxel within FACE_GUARD_CELLS = 3 of any of the six grid faces,
     #     else the sequence fails with `solid_near_grid_face`. A solid at a face goes NaN in k-Wave.
-    # 4. rho = where(occ, RHO_SOLID, RHO_AIR) as float32, then
+    #    occ = frac > 0 (bool; the 3b guard and Medium.occ read it).
+    # 4. rho = RHO_AIR + frac*(RHO_SOLID - RHO_AIR) (linear in rho, D-067), then
     #    rho = scipy.ndimage.gaussian_filter(rho, RHO_SMOOTH_CELLS)   (D-036)
     #    RHO_SMOOTH_CELLS = 0.5. A sharp jump goes NaN at CFL 0.3 and under-reflects by
     #    ~38% when stable; smoothed gives 94-95% of a rigid reflector on CPU and T4.
     #    Port voxels are checked against the UNSMOOTHED occupancy (step 5).
-    # 5. port voxel = round((port.pos + dx*port.normal - origin)/dx); record covered = occ[port]
-    #    (before forcing), then set rho[port] = RHO_AIR (D-048). Never assert, never shift a port.
-    # Medium also carries occ (bool, unsmoothed occupancy; simulate re-checks the 3b guard on it) and
+    # 5. port voxel = round((port.pos + dx*port.normal - origin)/dx); record covered = frac[port] >= 0.5
+    #    (before forcing, D-067), then set rho[port] = RHO_AIR (D-048). Never assert, never shift a port.
+    # Medium also carries occ (bool, frac > 0, unsmoothed; simulate re-checks the 3b guard on it) and
     # port_covered = any port voxel covered (the CLI passes it to the writer), D-061.
 ```
 
