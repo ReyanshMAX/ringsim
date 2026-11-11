@@ -1,0 +1,15 @@
+# Phase 2 Q-020 rigid reference (D-072, D-076): 300 x 300 mm plate at d = 80 mm, so its edge diffraction lands
+# outside the pulse window; the D-036 re-measure compares the echo/direct ratio sim vs sim. Clamp out, dx 2 mm.
+# t = 10 mm is a Q-020-only fixed geometry, NOT a model of the real board (D-081).
+job_id: p2_q020_rigid
+device: iphone17pro
+scene: plate
+dx_mm: 2.0
+placement:
+  plate: {size_mm: [300, 300, 10], distance_mm: 80.0}
+  rig_boxes: []
+poses:
+  source: plate
+  n_frames: 1
+dr: null
+seed: 0

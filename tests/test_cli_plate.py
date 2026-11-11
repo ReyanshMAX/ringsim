@@ -98,3 +98,17 @@ def test_plate_poses_source_must_be_plate(tmp_path, fake_kwave):
     with pytest.raises(ValueError, match="poses.source"):
         main(["sim", "--job", str(job), "--out-dir", str(tmp_path / "o")])
     assert fake_kwave == []
+
+
+def test_q020_jobs_match_d076():
+    """D-072 / D-076 / D-081: 10 positions 80.0..81.8 mm, 100 x 100 x 10 plate, clamp out; rigid 300 x 300 x 10 @ 80."""
+    ds = []
+    for i in range(10):
+        j = load_job(str(REPO / "jobs" / f"p2_q020_{i:02d}.yaml"))
+        assert j.job_id == f"p2_q020_{i:02d}" and j.scene == "plate" and j.dx_m == 0.002
+        assert j.placement["rig_boxes"] == [] and j.placement["plate"]["size_mm"] == [100, 100, 10]
+        ds.append(j.placement["plate"]["distance_mm"])
+    np.testing.assert_allclose(ds, 80.0 + 0.2 * np.arange(10), atol=1e-9)
+    r = load_job(str(REPO / "jobs" / "p2_q020_rigid.yaml"))
+    assert r.placement["plate"] == {"size_mm": [300, 300, 10], "distance_mm": 80.0}
+    assert r.placement["rig_boxes"] == []

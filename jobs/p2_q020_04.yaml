@@ -1,0 +1,15 @@
+# Phase 2 Q-020 sub-cell check (BUILD.md, D-072, D-076): plate step 4 of 10, d = 80.8 mm, clamp out, dx 2 mm.
+# Plate 100 x 100 x 10 mm: t = 10 mm is a Q-020-only fixed geometry for a sim-vs-sim check, NOT a model of the
+# real board (D-081; the real-comparison jobs keep TBD(Q-027)). Uses the current iphone17pro.yaml (Q-005, D-071).
+job_id: p2_q020_04
+device: iphone17pro
+scene: plate
+dx_mm: 2.0
+placement:
+  plate: {size_mm: [100, 100, 10], distance_mm: 80.8}
+  rig_boxes: []
+poses:
+  source: plate
+  n_frames: 1
+dr: null
+seed: 0
