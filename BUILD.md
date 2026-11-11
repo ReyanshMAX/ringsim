@@ -58,9 +58,9 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 - [ ] Every sequence in the p1_free shard has `ref_ir`; `load_sequence` works in both `mode="ref"` and `mode="raw"`.
 - [ ] The p1_free shard (simulated for 48 kHz) read with `dev_override` at 44.1 kHz (600-sample chirp, 17–21 kHz) passes
       the same monopole check as the 48 kHz read (D-046).
-- [ ] Isolation test passes, incl. the fresh-subprocess check that `import ringsim.proc` pulls in no sim dependency (D-045).
+- [x] Isolation test passes, incl. the fresh-subprocess check that `import ringsim.proc` pulls in no sim dependency (D-045). (2026-11-11: `python -m pytest -q` → 103 passed, 0 skipped at 2751496, seat 4)
 - [ ] `pytest -m slow tests/test_temperature_scaling.py` passes (D-037 check; through the runner with `--cmd`, D-052).
-- [ ] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` listing Q-001 and Q-002.
+- [x] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` listing Q-001 and Q-002. (2026-11-11: `python -m pytest -q` → 103 passed, 0 skipped at 2751496, seat 4)
 - [ ] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame), CPU, run through the runner with
       `--cmd` (D-052), completes and writes a shard with every attr in DATASET.md.
 - [ ] `ringsim profile` on that shard matches an ideal monopole (H = j·2πf·e^{−2πifτ}, τ = 0.100/c) run through the same proc path: envelope peak within 1 bin of the reference's, rel L2 < 10% after one complex gain (`validation/freefield.py`). The unwindowed 4 kHz chirp has 26–29% range sidelobes and k-Wave's mass source makes the direct path a time derivative (≈90° phase), so the peak sits near bin 3, not 0 (v1 finding).
