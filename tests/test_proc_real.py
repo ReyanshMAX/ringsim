@@ -7,8 +7,8 @@ start, free-air end, each plate take) gets its OWN random start offset and is al
 
 Call order under test, one recording at a time:
   align_direct_path -> frame_stream -> free_air_reference (free-air takes) -> cfmcw_profiles_ref
-Whether frame 0 of a data take is dropped is NOT specified (PROCESSING.md names the skip only inside
-free_air_reference); every check below runs with both choices, FIRST_FRAME in (0, 1).
+Real data takes skip frame 0 (user answer 2026-11-11, PROCESSING.md Notes); the checks below still run with
+both choices, first_frame in (0, 1), so the bins are shown not to depend on the skip.
 """
 import numpy as np
 import pytest

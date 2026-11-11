@@ -282,3 +282,19 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   `load_device` asserts `abs(frame_period_s*fs - round(...)) < 1e-9`.
 - Real iOS captures are float32 at 48 kHz; if `AVAudioSession` reports a different
   hardware rate the capture is rejected, never resampled (CAPTURE_APP.md).
+- Real captures through proc, one recording at a time (VALIDATION.md capture layout; user answer 2026-11-11):
+  1. `tx = tx_frame(spec, 48000)` from the device config's chirp (never from the WAV's `tx_file`), `frame_len = len(tx)`.
+  2. Every recording, free-air and data, is aligned on its own: `offset = align_direct_path(stream, tx, band, 48000)`.
+     Offsets differ between takes (the player starts a variable time after the tap). Using another recording's offset
+     moves every profile by the offset difference (synthetic check, `tests/test_proc_real.py`: 5 samples moved the peak
+     from bin 31 to 6).
+  3. `ref = free_air_reference(free_air_stream, tx, band, 48000, offset_free)`: needs `n_avg + 1` frames after that
+     recording's offset (ValueError otherwise); a 5 s free-air file has about 400. One reference at session start and one
+     at the end; the two are compared for drift.
+  4. `frames = frame_stream(stream, offset_data, len(tx))`, then `cfmcw_profiles_ref(frames, tx, ref, band, 48000, n_bins)`
+     (and `cfmcw_profiles` for the raw comparison). Real data takes skip frame 0, as `free_air_reference` does: frame 0
+     has no echo tail from a previous period. In the synthetic check frame 0 keeps the plate peak bin but differs from
+     the steady-state profile by 0.44 relative L2.
+  5. `align_direct_path` takes the earliest envelope peak >= 0.5 of the maximum. Synthetic check: stable (constant
+     offset minus start sample) while the target echo is up to 0.6x the direct path, 1 sample later at 1.0-1.5x, and it
+     locks onto the echo at 3x. A target echo stronger than the direct path is not expected from a phone at >= 8 cm.
