@@ -89,7 +89,9 @@ def plate_metrics(sim: dict, real: dict, fs_hz: float, temp_c: float) -> dict:
 
 
 def noise_floor(profiles: np.ndarray, *, skip_frames: int) -> float:
-    """Static noise floor n (metric 4): median over frames of ||P_k - mean P|| / ||mean P||, from a no-plate take."""
+    """Static noise floor n (metric 4): median over frames of ||P_k - mean P|| / ||mean P||, from a no-plate take.
+    The caller passes the take's referenced profiles NOT background-subtracted (subtracting makes mean P ~ 0 and the
+    ratio meaningless), computed with the session's reference; skip_frames drops frame 0 (and any others) first."""
     p = np.asarray(profiles, dtype=np.float64)[skip_frames:]
     if len(p) < 2:
         raise ValueError("need at least 2 frames after skipping")
@@ -99,7 +101,9 @@ def noise_floor(profiles: np.ndarray, *, skip_frames: int) -> float:
 
 def free_air_drift(start: np.ndarray, end: np.ndarray) -> dict:
     """Drift between the session's first and last free-air recording: ||mean(end) - mean(start)|| / ||mean(start)||
-    of their profiles (the caller computes both with the same reference)."""
+    of their profiles. The caller aligns each recording on its own offset, uses the SAME reference (the start one) for
+    both, and passes only frames after the reference's own n_avg frames (index >= n_avg + 1), so the number measures
+    drift and not how well the reference fits the frames that built it."""
     a = np.asarray(start, dtype=np.float64).mean(axis=0)
     b = np.asarray(end, dtype=np.float64).mean(axis=0)
     return {"rel_l2": float(np.linalg.norm(b - a) / np.linalg.norm(a))}
