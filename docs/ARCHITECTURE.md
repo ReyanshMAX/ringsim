@@ -100,6 +100,8 @@ class SimResult:
     wall_s: float                           # the kspaceFirstOrder3D call only (D-063)
 def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> SimResult
     # = assert medium.c == C_SIM, time_axis, simulate, wall_s
+def medium_time_axis(medium: Medium, range_window_m: float, fs_device: int) -> tuple[float, int, int]
+    # run_ir's first step: d_direct from the port voxels, then solver.grid.time_axis
 def simulate(medium: Medium, dt: float, n_t: int, gpu: bool) -> tuple[np.ndarray, np.ndarray]
     # (ir float32 [n_t] mic-averaged, pulse float32 [n_t]); no c assert (test_temperature_scaling runs 337 m/s through it)
 
@@ -124,6 +126,9 @@ ringsim sim      --job jobs/<job>.yaml [--gpu] [--frames a:b] [--out-dir DIR]
                                                                  # writes <DIR, default data/shards>/<job_id>.h5
                                                                  # and <DIR>/<job_id>_medium.png; no --gpu: refuses
                                                                  # Nx·Ny·Nz > 96³ excl. PML (D-062)
+                                                                 # a k-Wave exception or non-finite IR fails the sequence
+                                                                 # ("run_error: …" / "nonfinite_ir"), exit 1 (D-066);
+                                                                 # --frames refused until Q-025
 ringsim profile  --shard <h5> --seq <id> --out <png>            # plot profiles + differential; prints
                                                                  # freefield_check as JSON (D-060)
 ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/

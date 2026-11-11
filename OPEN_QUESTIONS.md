@@ -188,3 +188,24 @@ radial/ulnar deviation become per-sequence DR (forearm prism rotated at the wris
 - **Options:** ranges from InterHand2.6M / GRAB global orientation relative to the arm if available;
   Ring-a-Pose's tested orientations (§6.3.4) as the extremes
 - **Depends on it:** `dataset.randomize`, GEOMETRY forearm
+
+## Q-025: `ringsim sim --frames a:b` semantics
+
+ARCHITECTURE lists `--frames a:b` but no doc says what a partial frame range writes (which snapshots, the seq attrs,
+one shard or several), and static scenes (`free`, `plate`) have one snapshot for all frames. Until answered,
+`--frames` raises (raised by seat 2 2026-11-11; lead ruling: refuse, no default).
+- **Blocking:** Phase 3/4 (frame ranges of hand sequences, splitting long jobs across kernels)
+- **Options:** simulate snapshots of frames a..b-1 (+ the next frame start) into the same job's shard; or a separate
+  shard per range, merged by a script
+- **Depends on it:** `cli.py`, `ShardWriter` partial-sequence rules (DATASET.md)
+
+## Q-026: Alignment offset of the sim free-air reference
+
+`load_sequence` aligns the data stream and the `ref_ir` stream separately (`align_direct_path` on each). The direct path
+of `cfmcw_profiles_ref` sits exactly at lag 0 only when the two offsets are equal; a difference of Δ samples shifts every
+referenced profile by Δ lags. In the sim both streams start at t = 0, so the data offset could serve both; on the
+phone the reference is a separate recording and must be aligned on its own (PROCESSING.md). Raised by seat 3 2026-11-11.
+- **Blocking:** Phase 3 (a hand echo near the direct path can move the data's alignment); not Phase 1 (free scene:
+  both streams identical)
+- **Options:** keep separate offsets (same procedure as real); or the sim reader uses the data offset for the reference
+- **Depends on it:** `dataset.reader`, Protocol C sim-vs-real comparison
