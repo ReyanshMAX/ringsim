@@ -65,8 +65,8 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
       `--cmd` (D-052), completes and writes a shard with every attr in DATASET.md. (2026-11-11: `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` → exit 0, BUILD_ID c12f529749d8; h5py attr dump vs DATASET.md: missing none / extra none; seats 2 and 4)
 - [x] `ringsim profile` on that shard matches an ideal monopole (H = j·2πf·e^{−2πifτ}, τ = 0.100/c) run through the same proc path: envelope peak within 1 bin of the reference's, rel L2 < 10% after one complex gain (`validation/freefield.py`). The unwindowed 4 kHz chirp has 26–29% range sidelobes and k-Wave's mass source makes the direct path a time derivative (≈90° phase), so the peak sits near bin 3, not 0 (v1 finding). (2026-11-11: `ringsim profile --shard p1_free.h5 --seq free --out profile.png` → rc 0, raw peak bin 3 vs ideal 3, rel L2 5.21%, pass; seat 2, reproduced by seat 4)
 - [x] Recorded IR arrival time matches `0.100/c + PULSE_DELAY` within 2 sim samples. (2026-11-11: `freefield_check` → arrival error −0.888 sim samples; CPU shard c12f529749d8)
-- [ ] `python tools/kaggle_run.py run jobs/p1_free.yaml` exits 0 on a T4 with a matching `BUILD_ID` (INFRA.md) and writes `data/shards/p1_free.h5`; that shard's IR matches the CPU shard to 1e-3 relative L2.
-- [ ] Per-frame `wall_s` for CPU and T4 written to STATUS.md.
+- [x] `python tools/kaggle_run.py run jobs/p1_free.yaml` exits 0 on a T4 with a matching `BUILD_ID` (INFRA.md) and writes `data/shards/p1_free.h5`; that shard's IR matches the CPU shard to 1e-3 relative L2. (2026-11-11: exit 0, Tesla T4, BUILD_ID fb85a88049c9 matched; `compare_ir` → 1.331e-05; seats 2 and 4)
+- [x] Per-frame `wall_s` for CPU and T4 written to STATUS.md. (2026-11-11: T4 2.31 s, CPU 7.69 s per snapshot; STATUS.md Measurements)
 - [x] `python tools/kaggle_run.py bench` result in STATUS.md Measurements (ring-sized grids, 1 and 2 T4s; run early, it needs
       no package code). Re-run with measured scene sizes once Phase 3 builds real hand scenes, and again if the ring gate or
       the forearm check (Phase 5) changes dx or the domain.

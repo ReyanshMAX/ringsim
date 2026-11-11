@@ -66,7 +66,9 @@ None.
 | Both T4s at once, dx 2.0 mm | 4 snapshots in 11.0 s incl. process start-up → 1311/hour for the pair (1.16× one GPU) | same |
 | Forearm end echo (D-053), bar 74 mm from sensor | blunt cut −50 dB vs the bar's own echo (−53 dB vs direct); fades ≤ 4 dB better; pyramid taper 13 dB worse | T4 kernel `ringsim-diag3` (scratch script), 2026-11-11 |
 | Local CPU k-Wave (Windows) | 45³ incl. PML × 100 steps: 50.3 s | scratch run of k-wave-python 0.6.2, 2026-11-11 |
-| wall_s/frame T4 (p1_free) | — | Phase 1 |
+| wall_s/frame T4 (p1_free: test_pair free field, dx 2 mm, 61×12×12 + PML 10, n_t 1433) | 2.31 s per snapshot (kspaceFirstOrder3D only, D-063); + 1.23 s for the sequence's `ref_ir` call | `python tools/kaggle_run.py run jobs/p1_free.yaml` 2026-11-11, BUILD_ID fb85a88049c9, shard `/seq/free/wall_s` |
+| wall_s/frame CPU, Kaggle (p1_free, same grid) | 7.69 s per snapshot; + 7.67 s for `ref_ir` | `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` 2026-11-11, BUILD_ID c12f529749d8 |
+| p1_free CPU vs T4 IR | 1.331e-05 relative L2 | `validation.freefield.compare_ir(cpu, t4, "free")` 2026-11-11 (seats 2 and 4) |
 | static noise floor n | — | Phase 2 |
 | chosen dx | — | Phase 3 |
 | frames / T4 GPU-hour (ring) | — | Phase 5 |
