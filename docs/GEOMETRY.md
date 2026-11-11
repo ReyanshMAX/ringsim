@@ -235,7 +235,10 @@ the forearm does not reach its cut plane (`forearm_inside_domain`), or any solid
 3 cells of a grid face (`solid_near_grid_face`, D-053). Resample the sequence's DR
 parameters up to 5 times, then fail the whole sequence. A run-time failure in any snapshot also
 fails the whole sequence; the reader refuses failed sequences and the job generator over-provisions
-(DATASET.md). No sequence ever has holes.
+(DATASET.md). No sequence ever has holes. Run-time failure (D-066), checked by `ringsim sim` before
+`write_snapshot` / `write_ref_ir`, for every snapshot and `ref_ir`: an exception from the k-Wave call →
+`fail_sequence(seq_id, "run_error: <Type>: <msg>")`; an IR with any non-finite sample →
+`fail_sequence(seq_id, "nonfinite_ir")`; either way the CLI exits 1.
 
 ## Voxelization
 

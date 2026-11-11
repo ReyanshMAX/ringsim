@@ -66,14 +66,33 @@ def cmd_sim(args: argparse.Namespace) -> int:
     attrs = {"source": job.poses["source"], "n_frames": job.n_frames, "seed": job.seed}
     with ShardWriter(str(shard), job, dev) as w:
         w.begin_sequence(seq_id, attrs, None, n_t)
-        res = run_ir(medium, dev.range_window_m, dev.fs_hz, args.gpu)
+
+        def run_checked(m, what):
+            """run_ir; a run-time exception or a non-finite IR fails the whole sequence (GEOMETRY.md)."""
+            import numpy as np
+            try:
+                r = run_ir(m, dev.range_window_m, dev.fs_hz, args.gpu)
+            except Exception as e:
+                reason = f"run_error: {type(e).__name__}: {e}"
+            else:
+                if np.isfinite(r.ir).all():
+                    print(f"{seq_id} {what}: wall_s {r.wall_s:.2f}", flush=True)
+                    return r
+                reason = "nonfinite_ir"
+            w.fail_sequence(seq_id, reason)
+            print(f"{seq_id} failed ({what}): {reason}", flush=True)
+            return None
+
+        res = run_checked(medium, "snapshot 0")
+        if res is None:
+            return 1
         w.write_snapshot(seq_id, 0, res, port_covered=medium.port_covered)
-        print(f"{seq_id} snapshot 0: wall_s {res.wall_s:.2f}", flush=True)
         # D-056: ref_ir is always its own call of the device-only scene, even where it equals the sim scene
         ref_medium = build_medium(free_scene(dev), job.dx_m, C_SIM, DOMAIN_MARGIN_M)
-        ref = run_ir(ref_medium, dev.range_window_m, dev.fs_hz, args.gpu)
+        ref = run_checked(ref_medium, "ref_ir")
+        if ref is None:
+            return 1
         w.write_ref_ir(seq_id, ref)
-        print(f"{seq_id} ref_ir: wall_s {ref.wall_s:.2f}", flush=True)
     print(f"wrote {shard}", flush=True)
     return 0
 

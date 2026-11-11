@@ -76,6 +76,27 @@ def test_cpu_refuses_grids_over_96_cubed(tmp_path, fake_kwave, monkeypatch):
     assert fake_kwave[0][1] is True
 
 
+@pytest.mark.parametrize("bad, reason", [("nan_sim", "nonfinite_ir"), ("nan_ref", "nonfinite_ir"),
+                                         ("raise", "run_error: RuntimeError: boom")])
+def test_run_failure_fails_the_sequence(job, tmp_path, fake_kwave, monkeypatch, bad, reason):
+    good = kr.run_ir
+
+    def flaky(medium, *a):
+        r = good(medium, *a)
+        if bad == "raise":
+            raise RuntimeError("boom")
+        if (bad == "nan_sim" and len(fake_kwave) == 1) or (bad == "nan_ref" and len(fake_kwave) == 2):
+            r.ir[5] = np.nan
+        return r
+
+    monkeypatch.setattr(kr, "run_ir", flaky)
+    out = tmp_path / "out"
+    assert main(["sim", "--job", str(job), "--out-dir", str(out)]) == 1
+    with h5py.File(out / "p1_free.h5", "r") as f:
+        g = f["seq"]["free"]
+        assert bool(g.attrs["failed"]) and g.attrs["failed_reason"] == reason
+
+
 def test_cpu_limit_is_96_cubed():
     import ringsim.cli as cli
     assert cli.CPU_MAX_CELLS == 96 ** 3

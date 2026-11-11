@@ -1,0 +1,14 @@
+# Phase 1 slow temperature-scaling test (BUILD.md, D-037, D-054). Run through the runner with
+#   python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"
+# The test builds its own fixture; this file only names the kernel (job_id = file name, INFRA.md) and is a
+# valid JobSpec so `ringsim sim` would also accept it.
+job_id: p1_tempscale
+device: test_pair
+scene: free
+dx_mm: 2.0
+placement: null
+poses:
+  source: free
+  n_frames: 1
+dr: null
+seed: 0
