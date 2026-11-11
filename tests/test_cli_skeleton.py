@@ -17,7 +17,6 @@ def test_help_lists_every_subcommand():
 
 
 @pytest.mark.parametrize("argv, phase", [
-    (["export-tx", "--device", "iphone17pro", "--out", "x"], "Phase 2"),
     (["real", "--capture", "x.wav", "--device", "iphone17pro", "--out", "x.png"], "Phase 2"),
     (["validate", "plate", "--sim", "x.h5", "--real", "d", "--out", "r"], "Phase 2"),
     (["validate", "hand", "--sim", "x.h5", "--real", "d", "--out", "r"], "Phase 4"),

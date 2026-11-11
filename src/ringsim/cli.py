@@ -125,8 +125,30 @@ def cmd_profile(args: argparse.Namespace) -> int:
     return 0
 
 
+TX_FILE_STEM = {"iphone17pro": "phone"}      # <stem>_tx.wav, CAPTURE_APP.md "Files" (D-077)
+SWEEP_F0_HZ, SWEEP_F1_HZ, SWEEP_DUR_S = 16000, 24000, 2.0   # sweep_16k_24k_2s.wav, VALIDATION.md Protocol A (D-077)
+
+
 def cmd_export_tx(args: argparse.Namespace) -> int:
-    _not_built("export-tx", 2)
+    """D-077: one call writes <stem>_tx.wav (the device yaml's chirp, one frame) and sweep_16k_24k_2s.wav."""
+    from pathlib import Path
+
+    from ringsim.devices.config import load_device
+    from ringsim.proc.chirp import export_sweep_wav, export_tx_wav
+
+    if args.device not in TX_FILE_STEM:
+        raise ValueError(f"export-tx: no tx file name is specified for device {args.device!r} "
+                         f"(CAPTURE_APP.md names {sorted(TX_FILE_STEM)})")
+    dev = load_device(args.device)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    tx = out / f"{TX_FILE_STEM[args.device]}_tx.wav"
+    sweep = out / "sweep_16k_24k_2s.wav"
+    export_tx_wav(dev.chirp, dev.fs_hz, str(tx))
+    export_sweep_wav(SWEEP_F0_HZ, SWEEP_F1_HZ, SWEEP_DUR_S, dev.fs_hz, str(sweep))
+    print(f"wrote {tx}", flush=True)
+    print(f"wrote {sweep}", flush=True)
+    return 0
 
 
 def cmd_real(args: argparse.Namespace) -> int:
@@ -158,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", required=True, help="<png>")
     s.set_defaults(func=cmd_profile)
 
-    s = sub.add_parser("export-tx", help="write the device's tx WAV (Phase 2)")
+    s = sub.add_parser("export-tx", help="write the device's tx WAV and the Protocol A sweep WAV")
     s.add_argument("--device", required=True)
     s.add_argument("--out", required=True)
     s.set_defaults(func=cmd_export_tx)
