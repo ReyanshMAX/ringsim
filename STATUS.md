@@ -1,9 +1,9 @@
 # Status
 
 **Last updated:** 2026-11-11
-**Current phase:** 1 of 5 — Free-field pipeline (Phase 0 done 2026-11-10)
-**Next action:** start Phase 1 (BUILD.md): `pyproject.toml` per INFRA.md (numpy/scipy base + `sim` extra, D-045), package
-skeleton, `ringsim.proc` with its required tests.
+**Current phase:** 2 of 5 — Phone + flat plate (Phase 1 done 2026-11-11)
+**Next action:** start Phase 2 (BUILD.md): capture app per docs/CAPTURE_APP.md (seat 5) and `ringsim export-tx`;
+then Protocol A step 0 (which tx channel drives only the bottom speaker, D-032).
 
 ---
 
@@ -37,18 +37,35 @@ skeleton, `ringsim.proc` with its required tests.
   the grid and `build_medium` / `run_ir` refuse any solid within 3 cells of a face. Measured end echo of a blunt cut:
   −50 dB vs the arm's own echo.
 
+- **Phase 1 — Free-field pipeline, local and Kaggle** (2026-11-11, round 1 of the multi-seat setup: lead + sim, proc,
+  dataset/validation seats). All 12 criteria met; evidence inline on each BUILD.md box:
+  - `python -m pytest -q -rs` → 115 passed, 2 deselected (slow), 0 skipped at 609b02a
+  - CPU run: `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` → exit 0,
+    BUILD_ID c12f529749d8; shard attrs vs DATASET.md: none missing, none extra; `ref_ir` present; reader raw and ref
+  - T4 run: `python tools/kaggle_run.py run jobs/p1_free.yaml` → exit 0, BUILD_ID fb85a88049c9; CPU vs T4 IR 1.331e-05
+  - monopole (`ringsim profile` / `freefield_check`, raw gates, D-057): peak bin 3 vs ideal 3, rel L2 5.21 %; 44.1 kHz
+    override (D-058) 4.74 %; arrival −0.888 sim samples
+  - slow test: `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"`
+    → 2 passed, err_scaled 0.0455 % (< 0.5 %), err_unscaled 4.78 %, |g| 1.01786 vs 1/α 1.01780
+  - Spec gaps found while building, each decided by the user and written into the docs (D-058 reworded by the lead to match its implementation): D-054 (slow tests on Kaggle,
+    revised the same day), D-055 (DeviceConfig from a shard), D-056 (`ref_ir` always its own call), D-057 (monopole
+    gates on raw), D-058 (44.1 kHz override), D-059 (JobSpec), D-060 (free-field API), D-061 (Medium.occ +
+    port_covered), D-062 (CPU limit), D-063 (`wall_s` scope), D-064 (motion-test window), D-065 ("hold"), D-066
+    (run-time failures). The slow-test fixture had bar 2's faces on grid points (v1 too); bar 2 moved 1 mm, PROCESSING.md.
+  - Deviations: none found; in the per-sha reviews each behaviour change came with its spec-doc edit in the same commit.
+  - Tooling: `scripts/private-commit.sh` mktemp fix (Git Bash); claude-multiplayer room server patched locally for
+    Windows paths (outside this repo).
+
 ## In progress
 
-- **Phase 1 — Free-field pipeline, local and Kaggle** (not started)
-  - [x] ring-sized benchmark (BUILD.md Phase 1 criterion, run early): see Measurements
+- **Phase 2 — Phone + flat plate** (not started)
 
 ## Next up
 
-1. Phase 1 — Free-field pipeline, local and Kaggle
-2. Phase 2 — Phone + flat plate (Q-005, Q-017, Q-020 resolved inside the phase)
-3. Phase 3 — Static hand + convergence (needs Q-008)
-4. Phase 4 — Sequences + hand validation (Q-019 resolved inside)
-5. Phase 5 — Ring + randomization + bulk generation (needs Q-001, Q-002, Q-014, Q-021; Q-022 to decide)
+1. Phase 2 — Phone + flat plate (Q-005, Q-017, Q-020 resolved inside the phase)
+2. Phase 3 — Static hand + convergence (needs Q-008; Q-026 to decide)
+3. Phase 4 — Sequences + hand validation (Q-019 resolved inside; Q-025 to decide)
+4. Phase 5 — Ring + randomization + bulk generation (needs Q-001, Q-002, Q-014, Q-021; Q-022 to decide)
 
 ## Blocked
 
@@ -69,6 +86,7 @@ None.
 | wall_s/frame T4 (p1_free: test_pair free field, dx 2 mm, 61×12×12 + PML 10, n_t 1433) | 2.31 s per snapshot (kspaceFirstOrder3D only, D-063); + 1.23 s for the sequence's `ref_ir` call | `python tools/kaggle_run.py run jobs/p1_free.yaml` 2026-11-11, BUILD_ID fb85a88049c9, shard `/seq/free/wall_s` |
 | wall_s/frame CPU, Kaggle (p1_free, same grid) | 7.69 s per snapshot; + 7.67 s for `ref_ir` | `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` 2026-11-11, BUILD_ID c12f529749d8 |
 | p1_free CPU vs T4 IR | 1.331e-05 relative L2 | `validation.freefield.compare_ir(cpu, t4, "free")` 2026-11-11 (seats 2 and 4) |
+| Temperature scaling (D-037), 64³ fixture, 343 → 337 m/s, Kaggle CPU | scaled vs direct 0.0455 % over 17–27 kHz (unscaled 4.78 %); \|g\| 1.01786 vs 1/α 1.01780 | `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"` 2026-11-11, BUILD_ID fb85a88049c9 |
 | static noise floor n | — | Phase 2 |
 | chosen dx | — | Phase 3 |
 | frames / T4 GPU-hour (ring) | — | Phase 5 |
@@ -82,7 +100,7 @@ T4 64³ × 1200 steps 2.7 s; T4 124³ × 1300 steps 13.0 s.
 
 ## Deviations from spec
 
-None yet in the rebuild. (v1's deviations are already written into PROCESSING.md, DATASET.md, DEVICES.md, BUILD.md.)
+None in the rebuild (Phase 1 closed with none). (v1's deviations are already written into PROCESSING.md, DATASET.md, DEVICES.md, BUILD.md.)
 
 ---
 

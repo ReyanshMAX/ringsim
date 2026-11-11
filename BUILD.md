@@ -59,7 +59,7 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 - [x] The p1_free shard (simulated for 48 kHz) read with `dev_override` at 44.1 kHz (600-sample chirp, 17–21 kHz) passes
       the same monopole check as the 48 kHz read (D-046). (2026-11-11: `freefield_check` with the D-058 override → raw peak bin 3 vs 3, rel L2 4.74%, pass; seats 2 and 4)
 - [x] Isolation test passes, incl. the fresh-subprocess check that `import ringsim.proc` pulls in no sim dependency (D-045). (2026-11-11: `python -m pytest -q` → 103 passed, 0 skipped at 2751496, seat 4)
-- [ ] `pytest -m slow tests/test_temperature_scaling.py` passes (D-037 check; through the runner with `--cmd`, D-052).
+- [x] `pytest -m slow tests/test_temperature_scaling.py` passes (D-037 check; through the runner with `--cmd`, D-052). (2026-11-11: `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"` → exit 0, 2 passed, err_scaled 0.0455 %, BUILD_ID fb85a88049c9; seat 2)
 - [x] `load_device("iphone17pro")` loads, dropping `bottom_mic1` and `front_mic` with warnings naming Q-005; `load_device("ring")` raises `ConfigIncomplete` listing Q-001 and Q-002. (2026-11-11: `python -m pytest -q` → 103 passed, 0 skipped at 2751496, seat 4)
 - [x] `ringsim sim --job jobs/p1_free.yaml` (test_pair, 100 mm spacing, dx 2 mm, 1 frame), CPU, run through the runner with
       `--cmd` (D-052), completes and writes a shard with every attr in DATASET.md. (2026-11-11: `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` → exit 0, BUILD_ID c12f529749d8; h5py attr dump vs DATASET.md: missing none / extra none; seats 2 and 4)
