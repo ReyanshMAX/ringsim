@@ -42,7 +42,7 @@ def load_session(path: str) -> dict:
     with open(jpath, encoding="utf-8") as f:
         session = json.load(f)
     wavs = sorted(f for f in os.listdir(path) if f.lower().endswith(".wav"))
-    free = [os.path.join(path, f) for f in wavs if f.startswith("free_air_")]
+    free = [os.path.join(path, f) for f in wavs if f.startswith("free_air_")]    # plate.py orders them by integer n
     takes = [os.path.join(path, f) for f in wavs if not f.startswith("free_air_")]
     return {"session": session, "free_air": free, "takes": takes}
 

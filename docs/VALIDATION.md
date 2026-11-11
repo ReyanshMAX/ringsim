@@ -39,11 +39,15 @@ data/captures/<session>/
   session.json          {"date","temp_c","phone":"iphone17pro","route","input_source",
                          "rig":"bottom_edge","clamp_box_mm","hand_mm","betas","notes"}
                         hand_mm / betas: Protocol C only (see there)
-  <take>.wav            float32 mono 48 kHz (from capture app)
+  <take>.wav            float32 mono 48 kHz (from capture app). Plate session stems (D-080): plate_<mm>mm_t<k>,
+                        background_t<k> (no plate), free_air_<n>; any other stem raises. `ringsim validate plate`
+                        orders free_air by integer n: lowest = session start, highest = end.
   <take>.json           capture-app metadata (CAPTURE_APP.md schema)
   free_air_<n>.wav      ≥ 5 s, active pair, nothing within 40 cm (D-018 rig, no target):
                         the session's reference for referenced profiles (D-042). One at the start
                         and one at the end of every session; the two are compared to check drift.
+                        Drift number (D-079): both recordings aligned on their own offset, both referenced with the START
+                        reference, only frames with index >= n_avg + 1 (51) of each; rel L2 of the two mean profiles.
 ```
 
 ## Protocol A — transducer sweep + mic identification (Phase 2, resolves Q-005, informs Q-011)
@@ -89,7 +93,8 @@ Metrics (`ringsim validate plate`):
 3. **Amplitude trend**: log peak magnitude vs log distance, sim and real slopes reported
    side by side (no pass threshold; informs Q-011).
 4. **Static noise floor** `n` (reported next to the SOLVER convergence result; not a threshold): from no-plate takes,
-   median over frames of `||P_k − mean P|| / ||mean P||`.
+   median over frames of `||P_k − mean P|| / ||mean P||`. Profiles are referenced with the session REF, NOT
+   background-subtracted (subtracting makes mean P ≈ 0), frame 0 of each take skipped (D-079).
 5. **Signed shape** (checks D-042; metrics 1–3 ignore phase): referenced profiles, background-subtracted,
    bins within ±10 of the plate peak. Fit one sub-bin delay (|δ| ≤ 1 bin; absorbs the ±2 mm ruler error)
    to the sim profile, then Pearson r between sim and real per distance. Report, no threshold; informs Q-021.
