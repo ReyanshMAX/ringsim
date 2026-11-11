@@ -110,7 +110,7 @@ def cfmcw_profiles_ref(frames: np.ndarray, tx: np.ndarray, ref: np.ndarray,
 
 
 def magnitude(profiles: np.ndarray) -> np.ndarray:
-    """|hilbert(profile)| along bins. Display only."""
+    """|hilbert(profile)| along bins. Display and the Protocol B peak-bin metric; never model input."""
     return np.abs(signal.hilbert(profiles, axis=-1)).astype(np.float32)
 
 

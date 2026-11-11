@@ -145,7 +145,7 @@ def cfmcw_profiles_ref(frames: np.ndarray, tx: np.ndarray, ref: np.ndarray,
     # ≈ irfft(H_scene / H_direct * |TX|^2): the device response (phase and magnitude) cancels,
     # the direct path sits exactly at lag 0. Returns SIGNED float32 [T, n_bins]. No Butterworth:
     # the band mask does the band limiting. Same `ref` for every frame of a sequence / session.
-def magnitude(profiles: np.ndarray) -> np.ndarray      # |hilbert(profile)| along bins, display only
+def magnitude(profiles: np.ndarray) -> np.ndarray      # |hilbert(profile)| along bins; display and the Protocol B peak-bin metric, never model input
 def differential(profiles: np.ndarray) -> np.ndarray   # profiles[1:] - profiles[:-1], [T-1, n_bins]
 ```
 
