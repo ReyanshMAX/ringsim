@@ -2,15 +2,16 @@
 
 ## Overview
 
-The only processing code in the project (D-008). Converts simulated IRs into the
-received audio stream a real device would record, and converts any received stream
+The only processing code in the project (D-008). Converts simulated IR snapshots into the
+received audio stream a real device would record (D-041), and converts any received stream
 (sim or real) into C-FMCW echo profiles and differential profiles. Hardware code
 imports this package directly.
 
 ## Non-goals
 
-- No imports from `ringsim.geometry`, `solver`, `dataset`, `validation` (enforced by
-  `tests/test_proc_isolation.py`, which greps imports).
+- No imports from `ringsim.geometry`, `solver`, `dataset`, `validation`, and no third-party
+  imports beyond numpy and scipy (enforced by `tests/test_proc_isolation.py`, see Required tests;
+  packaging in INFRA.md, D-045).
 - No ML preprocessing (normalization, augmentation beyond noise). That belongs to the
   training suite.
 - No device-specific branches; everything is parameterized by `ChirpSpec`, `fs`, and
@@ -25,7 +26,8 @@ C_SIM = 343.0                                   # every k-Wave sim runs at this 
 TEMP_RANGE_C = (10.0, 35.0)                     # supported read-time temperatures
 def speed_of_sound(temp_c: float) -> float:
     return 331.3 * np.sqrt(1 + temp_c / 273.15)
-C_MIN = speed_of_sound(TEMP_RANGE_C[0])         # ≈ 337.3 m/s, sets the sim time window
+C_MIN = speed_of_sound(TEMP_RANGE_C[0])         # ≈ 337.3 m/s
+C_MAX = speed_of_sound(TEMP_RANGE_C[1])         # ≈ 351.9 m/s, sets the sim time window (D-044)
 def temperature_alpha(temp_c: float) -> float:  # α = c(T) / C_SIM
     assert TEMP_RANGE_C[0] <= temp_c <= TEMP_RANGE_C[1]
     return speed_of_sound(temp_c) / C_SIM
@@ -42,11 +44,17 @@ def export_sweep_wav(f0: float, f1: float, dur_s: float, fs: int, path: str) -> 
     # log sweep for transducer response (Q-011), Hann fade 10 ms each end
 
 # src/ringsim/proc/ir.py
-def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, k: int, tx: np.ndarray,
+def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, fs_sim: int, tx: np.ndarray,
                band: tuple[float, float], fs_device: int, alpha: float = 1.0,
                eps: float = 1e-3) -> np.ndarray
-    # 1. tx_up = resample_poly(tx, up=k, down=1, window=h)  (fs_sim = k*fs_device)
-    #    h = Kaiser FIR, 80 dB, 1 kHz transition centred 500 Hz below fs_device/2.
+    # Response of ONE static snapshot to the tx samples given. tx may be any length; rx_stream
+    # passes a stretch of the periodic tx stream (several periods), not a single period.
+    # fs_device need not divide fs_sim (D-046): q/p = fs_sim/fs_device as a reduced fraction
+    # (12/1 for a 50 kHz shard read at 50 kHz, 25/2 at 48 kHz, 2000/147 at 44.1 kHz).
+    # 1. tx_up = resample_poly(tx, up=q, down=p, window=h)
+    #    h = Kaiser FIR, 80 dB, 1 kHz transition centred 500 Hz below fs_device/2, designed at
+    #    fs_device*q (= fs_sim*p); cached per (fs_sim, fs_device). Scratch 2026-11-10 from 600 kHz:
+    #    round-trip error ≤ 4e-4 at 44.1/48/50 kHz; 443k taps at 44.1 kHz, < 0.2 s.
     #    resample_poly's default filter droops 21% at 22 kHz over the up+down round
     #    trip (48 kHz, k=12), failing the 3% amplitude test; h is flat to <0.01%
     #    up to fs_device/2 - 1 kHz. Same h in step 6.
@@ -55,15 +63,38 @@ def rx_from_ir(ir: np.ndarray, pulse: np.ndarray, k: int, tx: np.ndarray,
     # 3b. if alpha != 1: H = temperature_scale(H, freqs, alpha)   (D-037)
     # 4. H *= raised-cosine mask: 1 inside band, 1 kHz cosine taper each side, 0 outside
     # 5. y = irfft(H * rfft(tx_up, N), N)
-    # 6. return resample_poly(y[:len(tx_up)+len(ir)], up=1, down=k, window=h).astype(float32)
-    # Output length: ceil((len(tx_up)+len(ir))/k). Pulse delay is removed by the deconvolution.
+    # 6. return resample_poly(y[:len(tx_up)+len(ir)], up=p, down=q, window=h).astype(float32)
+    # Output length: ceil((len(tx_up)+len(ir))*p/q). Pulse delay is removed by the deconvolution.
+    # Edge effects: resample_poly treats samples beyond the ends of tx as 0, so the first and last
+    # ~20 device samples carry errors up to ~0.5 of peak. rx_stream keeps them in padding it discards.
 def temperature_scale(H: np.ndarray, freqs: np.ndarray, alpha: float) -> np.ndarray
     # Exact for this model (derivation below): H_{αc}(f) = α · H_c(f/α).
     # Evaluate H at f/α by linear interpolation of real and imaginary parts on the rfft
     # grid. The grid must be dense: rx_from_ir zero-pads to N ≥ 2**16 at fs_sim, so
     # df ≤ fs_sim / 65536 (≈ 9 Hz at 576 kHz). Returns α · H(f/α); 0 where f/α > freqs[-1].
-def overlap_add_stream(frame_rx: list[np.ndarray], frame_len: int) -> np.ndarray
-    # frame t's response starts at t*frame_len; echoes spill into frame t+1
+def snapshot_weights(snap_t: np.ndarray, t: np.ndarray, interp: str = "cubic") -> np.ndarray
+    # W [S, len(t)]: weight of snapshot s at time t[n]; every column sums to 1 (D-041).
+    # "cubic": cubic Hermite between neighbouring snapshots, tangent at snapshot i
+    #   = (p[i+1] - p[i-1]) / (snap_t[i+1] - snap_t[i-1]) (one-sided at the two ends). Equals
+    #   Catmull-Rom when snapshots are evenly spaced; the tangents are linear in the p's, so W is a
+    #   fixed weight matrix. Outside [snap_t[0], snap_t[-1]] the nearest end snapshot is held.
+    # "hold": each frame uses only the snapshot at its start (the old frame-frozen D-005 model).
+    #   For comparison in validation reports only; never for datasets.
+    # S == 1 (static scene) → W = 1 everywhere.
+def rx_stream(irs: np.ndarray, snap_t: np.ndarray, pulse: np.ndarray, fs_sim: int, tx: np.ndarray,
+              band: tuple[float, float], fs_device: int, n_frames: int, alpha: float = 1.0,
+              eps: float = 1e-3, interp: str = "cubic") -> np.ndarray
+    # irs [S, n_t] at fs_sim; snap_t [S] seconds; frame f's chirp starts at f*len(tx)/fs_device.
+    # 1. tx_stream = tx tiled from frame -1 through frame n_frames: one warm-up period before t = 0
+    #    so frame 0 already holds the previous period's echo tail, as in a real continuous capture.
+    # 2. per snapshot s: y_s = rx_from_ir(irs[s], pulse, fs_sim, tx_stream over the support of W[s]
+    #    padded by one period each side, band, fs_device, alpha, eps); the padding absorbs the
+    #    resampling edge errors and is discarded.
+    # 3. out[n] = sum_s W[s, n] * y_s[n], W evaluated at device sample times (reception time).
+    #    An echo takes the geometry at its reception time; the <= 2 ms flight time is ignored
+    #    (<= 1.2 mm of motion at 0.6 m/s).
+    # Returns out for n in [0, n_frames*len(tx) + ceil(n_t*fs_device/fs_sim)), float32.
+    # Cost: each snapshot is convolved over its support (~2-4 periods), ~3x the old per-frame cost.
 
 # src/ringsim/proc/profile.py
 def align_direct_path(stream: np.ndarray, tx: np.ndarray, band: tuple[float, float],
@@ -85,6 +116,29 @@ def cfmcw_profiles(frames: np.ndarray, tx: np.ndarray, band: tuple[float, float]
     #   (linear: frame samples past the frame end count as 0);
     # returns SIGNED float32 [T, n_bins]. Lag 0 = direct path after alignment.
     # One bin = c/(2*fs) one-way: 3.43 mm @ 50 kHz, 3.57 mm @ 48 kHz.
+def free_air_reference(stream: np.ndarray, tx: np.ndarray, band: tuple[float, float],
+                       fs: int, offset: int, n_avg: int = 50) -> np.ndarray
+    # Device-only response, used to normalize profiles (D-042). stream = a capture (real) or an
+    # rx_stream (sim) with no target in range; offset from align_direct_path.
+    # 1. g = mean of frames 1..n_avg (frame 0 skipped) from frame_stream(stream, offset, len(tx))
+    # 2. impulse estimate e = irfft(rfft(g) * conj(TX) / (|TX|^2 + 1e-3 * max|TX|^2) * mask, L),
+    #    TX = rfft(tx), L = len(tx), mask = the rx_from_ir raised-cosine band mask
+    # 3. gate: keep circular lags |j| <= G, G = floor(0.70 * fs / C_SIM) (102 samples ring, 97 phone:
+    #    excess path < 0.70 m, i.e. reflectors closer than ~35 cm), Tukey taper (alpha 0.5), zero
+    #    elsewhere. Removes room echoes; free-air captures keep everything >= 40 cm away (D-018).
+    #    The device's own body (phone far end, ring band) stays in the reference, in sim and real.
+    #    A narrow gate (~2 main lobes, 25 samples) truncates the band-limited impulse and costs 8-17 %
+    #    error (scratch check 2026-11-10); 100 samples is within 0.6 % of no gate.
+    # 4. return REF = rfft(gated e, L) * TX   (complex [L//2+1]; = device response × direct path × TX)
+def cfmcw_profiles_ref(frames: np.ndarray, tx: np.ndarray, ref: np.ndarray,
+                       band: tuple[float, float], fs: int, n_bins: int,
+                       eps: float = 1e-3) -> np.ndarray
+    # Reference-normalized C-FMCW profiles (D-042); the model input in this project.
+    # per frame: FR = rfft(frame, L) (circular: frames of a steady periodic stream),
+    #   q = irfft(FR * |TX|^2 * conj(ref) / (|ref|^2 + eps * max_band|ref|^2) * mask, L)[:n_bins]
+    # ≈ irfft(H_scene / H_direct * |TX|^2): the device response (phase and magnitude) cancels,
+    # the direct path sits exactly at lag 0. Returns SIGNED float32 [T, n_bins]. No Butterworth:
+    # the band mask does the band limiting. Same `ref` for every frame of a sequence / session.
 def magnitude(profiles: np.ndarray) -> np.ndarray      # |hilbert(profile)| along bins, display only
 def differential(profiles: np.ndarray) -> np.ndarray   # profiles[1:] - profiles[:-1], [T-1, n_bins]
 ```
@@ -104,8 +158,9 @@ It holds exactly when: c is uniform (D-004); ρ₀ is fixed (a uniform scaling o
 leaves p unchanged anyway); there is no absorption or dispersion (SOLVER.md non-goal; if
 absorption is ever added this breaks); geometry does not move; H is sampled inside the
 pulse band at f/α (TEMP_RANGE_C gives α ∈ [0.983, 1.026], so a 20–24 kHz chirp needs
-19.5–24.4 kHz, inside the 16–28 kHz pulse band); and the IR window covers the slowest
-air (t_end uses C_MIN).
+19.5–24.4 kHz, inside the 16–28 kHz pulse band); and the IR window covers the hottest
+air: H(f/α) needs the 343 m/s IR up to α times the read window, and α > 1 when it is
+warmer than 20 °C (t_end uses C_MAX, D-044).
 
 Verified 2026-10-14 (k-wave-python 0.6.2, CPU, 64³, plate + two bars, smoothed ρ):
 scaled-from-343 vs direct sims at 349 and 337 m/s differ by 0.10% and 0.03% over
@@ -120,6 +175,43 @@ to the direct path; training normalizes per channel).
 
 Range interpretation: bin j corresponds to excess round-trip path `j*c/fs` beyond the
 direct speaker→mic path, not absolute distance. Same definition in sim and real.
+
+Temperature and motion are independent: `alpha` scales each snapshot's IR; snapshot times
+(the pose timeline) do not change.
+
+## Motion within a frame (D-041)
+
+A chirp that sweeps B = 4 kHz over T = 12 ms is a slow chirp (B/T ≈ 333 kHz/s). A reflector moving
+at radial speed v shifts the echo frequency by f_D = 2·v·f/c, and the cross-correlation turns a
+frequency shift into a lag shift of f_D·T/B. At 22 kHz that is about 2 bins per 0.1 m/s, which a
+frame-frozen sim (one pose for the whole chirp) cannot produce. k-Wave cannot move geometry during a
+run, so each run is a static snapshot; `rx_stream` interpolates the snapshot responses along the
+chirp. This is valid because the received signal is linear in the IR.
+
+Accuracy is set by how far the geometry moves between snapshots: the IR at a fixed delay oscillates
+in time at f_D, and the snapshots have to sample that oscillation. Scratch check 2026-11-10 (analytic
+moving point reflectors, this chain): differential error ≤ 7 % when no reflector moves more than
+1.8 mm between snapshots; 2 % at 1.2 mm. The threshold the generator uses is `snapshot_disp_mm` (Q-019).
+
+## Reference-normalized profiles (D-042)
+
+Every echo, the direct path included, passes through the same speaker and mic, so the received
+spectrum is H_dev(f) · H_scene(f) · TX(f), with H_dev unknown (transducer magnitude and phase,
+amplifier, and in the sim k-Wave's mass-source derivative). Signed profiles depend on H_dev's
+phase: a 90° carrier phase change takes the sim-vs-real correlation of a signed profile to about 0
+(audit scratch check 2026-11-10), while envelopes barely change. A free-air recording of the same
+device measures H_dev · H_direct; dividing by it leaves H_scene / H_direct, the same quantity in sim
+and real.
+
+Conditions: the reference is taken with nothing inside the range window (real: device ≥ 40 cm from
+any surface; sim: device-only snapshot); H_dev must not change between reference and data
+(same session); H_direct has no near-zeros in band (the direct path dominates the gated reference).
+What it does not remove: parts of H_dev that differ by direction (transducer directivity), and
+paths that exist only in the real device (e.g. sound through the ring's plastic body); those stay
+as residual DR (Q-021).
+
+For a comparison against the Ring-a-Pose baseline, the training suite should run the baseline on
+both raw and referenced input, so the input change is not confused with the sim-to-real method.
 
 ## Ring-a-Pose parity
 
@@ -138,8 +230,21 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
 - Synthetic: stream = tx delayed by d samples + 0.3·tx delayed by d+20 (both n_bins > 20) → after
   alignment, signed profile peaks at bins 0 and 20 (±1).
 - `rx_from_ir` with an analytic IR (pulse delayed by m sim samples) returns tx delayed
-  by m/k device samples (±1 sample), amplitude within 3% inside band.
-- Linearity: `rx_from_ir(a*ir1 + b*ir2) == a*rx1 + b*rx2` to 1e-5 relative.
+  by m·fs_device/fs_sim device samples (±1 sample), amplitude within 3% inside band, for
+  fs_sim = 600 kHz and fs_device ∈ {50, 48, 44.1} kHz (D-046).
+- Linearity: `rx_from_ir(a*ir1 + b*ir2) == a*rx1 + b*rx2` to 1e-5 relative; same for `rx_stream`
+  over the IR stack.
+- `rx_stream` with S = 1 equals `rx_from_ir` of that IR against the tiled tx stream (steady state)
+  to 1e-5 relative over frames 0..n_frames-1.
+- `snapshot_weights`: columns sum to 1 to 1e-12; even spacing reproduces Catmull-Rom weights;
+  `interp="hold"` gives 0/1 weights that switch at frame starts.
+- `tests/test_proc_motion.py` (ring ChirpSpec, fs 50 kHz): direct path plus two point reflectors at
+  50 mm and 110 mm moving radially at +v and −0.6·v. Snapshot IRs = pulse delayed by τ(t_s) at
+  fs_sim (fractional delay by FFT phase). Exact stream = Σ a·tx(t − τ(t)) evaluated from the chirp
+  formula. Compare differential profiles over frames 4..11 (relative L2):
+  - frame-start snapshots only, v = 0.1 m/s: < 0.05 (scratch 2026-11-10: 0.02)
+  - snapshots every T/2, v = 0.3 m/s: < 0.10 (scratch: 0.07)
+  - `interp="hold"`, v = 0.3 m/s: > 0.5 (shows the test can see the effect; scratch: 1.28)
 - `export_tx_wav` → read back → identical to `tx_frame` to float32 precision.
 - `temperature_scale`: for an analytic H = exp(−2πifτ) (pure delay τ), output equals
   α·exp(−2πifτ/α) to 1e-4 relative inside 17–27 kHz; alpha = 1 is the identity.
@@ -151,7 +256,15 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   point): plate 60×60×4 mm centred on c,
   bars 8×8×60 mm at c + (−30, 20, −10) mm and 8×60×8 mm at c + (25, −5, −25) mm,
   all ρ = 1000 then smoothed (D-036); speaker voxel (32, 30, 12), mic voxel (32, 33, 12).
-- Isolation test: no forbidden imports in `src/ringsim/proc/`.
+- `tests/test_proc_reference.py`: stream = direct path + 4 echoes; real-side copies pass through 50
+  random device responses (magnitude tilt up to −8 dB across the band, random constant, quadratic
+  and linear phase), with matching references built by `free_air_reference` on direct-only streams.
+  `cfmcw_profiles_ref` of every copy matches the unfiltered one to 1e-2 relative L2 (scratch
+  2026-11-10: max 6e-3). A reference applied to its own stream gives `irfft(|TX|^2 * mask)[:n_bins]`
+  (the chirp's own autocorrelation, peak at bin 0) to 1e-2 relative L2.
+- Isolation test (D-045): (a) no import in `src/ringsim/proc/` other than the standard library, numpy,
+  scipy and `ringsim.proc` itself; (b) in a fresh subprocess, `import ringsim.proc` leaves none of
+  kwave, torch, smplx, trimesh, h5py, yaml, matplotlib, manifold3d in `sys.modules`.
 
 ## Notes
 

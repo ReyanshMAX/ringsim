@@ -5,13 +5,15 @@ Agents call this; the user never has to touch Kaggle. See docs/INFRA.md.
 
   python tools/kaggle_run.py doctor                    check CLI, auth, python, git
   python tools/kaggle_run.py selftest                  push a smoke kernel (T4, versions, tiny k-Wave sim)
+  python tools/kaggle_run.py bench                     time ring-sized k-Wave grids on T4 (dx 2/1.5/1 mm, 1 and 2 GPUs)
   python tools/kaggle_run.py run jobs/p1_free.yaml     build wheel -> ringsim-code dataset -> push kernel
                                                        -> wait -> pull to data/kaggle/<job_id>/
   python tools/kaggle_run.py status <job_id>           one status poll
   python tools/kaggle_run.py pull <job_id>             pull output again
   add --dry-run to any command: build and render everything, call kaggle for nothing
 
-Exit codes: 0 ok, 1 failed, 2 usage/config, 3 wrong GPU, 4 timeout, 5 another run holds the lock.
+Exit codes: 0 ok, 1 failed (incl. no run_meta.json), 2 usage/config (incl. job_id != file name),
+3 wrong GPU, 4 timeout or stale/missing code dataset, 5 another run holds the lock.
 """
 from __future__ import annotations
 
@@ -26,8 +28,9 @@ except ModuleNotFoundError:  # python < 3.11
 ROOT = Path(__file__).resolve().parent.parent
 KAGGLE = os.environ.get("KAGGLE_BIN", "kaggle")
 LOCK = Path(tempfile.gettempdir()) / "ringsim-kaggle.lock"
-LOCK_STALE_S = 20 * 60
+LOCK_STALE_S = 20 * 60          # stale = not refreshed for this long (the holder refreshes on every poll)
 DRY = False
+ACTIVE_LOCK = None
 
 DEFAULTS = {
     "username": "",                       # empty -> KAGGLE_USERNAME env -> detected from `kaggle ... --mine`
@@ -71,10 +74,12 @@ def kg(*args: str, check: bool = True, quiet: bool = False) -> subprocess.Comple
         return subprocess.CompletedProcess(cmd, 0, "", "")
     if not quiet:
         log("$ " + " ".join(cmd))
+    exe = shutil.which(KAGGLE) or KAGGLE          # resolves kaggle.exe / kaggle.cmd on Windows
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    except FileNotFoundError:
-        die("`kaggle` CLI not found. pip install kaggle, then `kaggle auth login`.", 2)
+        r = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           env=dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8"))   # Windows cp1252 breaks log download
+    except OSError:
+        die("`kaggle` CLI not found or not runnable. pip install kaggle, then `kaggle auth login`.", 2)
     if check and r.returncode != 0:
         die(f"kaggle {' '.join(args[:2])} failed ({r.returncode}):\n{r.stdout}\n{r.stderr}", 1)
     return r
@@ -86,6 +91,11 @@ def detect_username(cfg: dict) -> str:
         return u
     if DRY:
         return "dry-run-user"
+    r = kg("config", "view", check=False, quiet=True)        # works on a fresh account with nothing published
+    if r.returncode == 0:
+        m = re.search(r"^\W*username:\s*(\S+)", r.stdout, re.M)
+        if m and m.group(1).lower() not in ("none", "null"):
+            return m.group(1)
     for args in (("kernels", "list", "--mine", "--csv"), ("datasets", "list", "--mine", "--csv")):
         r = kg(*args, check=False, quiet=True)
         if r.returncode == 0:
@@ -103,17 +113,21 @@ class Lock:
     whatever version is latest when it starts."""
 
     held = False
+    token = ""
 
     def __enter__(self):
+        global ACTIVE_LOCK
         if DRY:
             return self
         deadline = time.time() + 10 * 60
         while True:
             try:
                 fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-                os.write(fd, f"{os.getpid()} {time.time()}".encode())
+                self.token = f"{os.getpid()}-{time.time_ns()}"
+                os.write(fd, self.token.encode())
                 os.close(fd)
                 self.held = True
+                ACTIVE_LOCK = self
                 return self
             except FileExistsError:
                 try:
@@ -127,13 +141,36 @@ class Lock:
                     die(f"another kaggle_run holds {LOCK} (age {age:.0f}s)", 5)
                 time.sleep(5)
 
+    def _mine(self) -> bool:
+        try:
+            return LOCK.read_text().strip() == self.token
+        except OSError:
+            return False
+
+    def refresh(self):
+        """Heartbeat: keeps the lock from looking stale during long dataset/queue waits."""
+        if self.held and self._mine():
+            try:
+                os.utime(LOCK)
+            except OSError:
+                pass
+
     def release(self):
+        global ACTIVE_LOCK
         if self.held:
             self.held = False
-            LOCK.unlink(missing_ok=True)
+            if self._mine():                 # never delete a lock another run took over
+                LOCK.unlink(missing_ok=True)
+        if ACTIVE_LOCK is self:
+            ACTIVE_LOCK = None
 
     def __exit__(self, *a):
         self.release()
+
+
+def heartbeat():
+    if ACTIVE_LOCK is not None:
+        ACTIVE_LOCK.refresh()
 
 
 # ---------------------------------------------------------------- code identity + wheel
@@ -190,7 +227,7 @@ def build_wheel(dest: Path) -> Path:
 
 # ---------------------------------------------------------------- kernel script
 KERNEL_TEMPLATE = r'''
-import base64, glob, json, os, subprocess, sys, time
+import base64, glob, json, os, shutil, subprocess, sys, time
 EXPECT = "__BUILD_ID__"          # "" in selftest
 MODE = "__MODE__"                # "job" | "selftest"
 CMD = base64.b64decode("__CMD_B64__").decode()
@@ -198,9 +235,15 @@ JOB_YAML = base64.b64decode("__JOB_B64__").decode()
 K = os.environ.get("KAGGLE_ROOT", "/kaggle"); W = K + "/working"; OUT = W + "/out"; os.makedirs(OUT, exist_ok=True)
 meta = {"mode": MODE, "build_id": EXPECT, "python": sys.version.split()[0], "t0": time.time()}
 
-def sh(c, **kw):
+def sh(c, **kw):                 # the job command only: a user-supplied command line
     print("$", c, flush=True)
     return subprocess.run(c, shell=True, **kw)
+
+def run(argv, **kw):             # everything else: argument lists, no shell, same on Linux and Windows
+    print("$", " ".join(argv), flush=True)
+    return subprocess.run([shutil.which(argv[0]) or argv[0], *argv[1:]], **kw)
+
+PY = [sys.executable, "-m", "pip"]
 
 def finish(rc, why=""):
     meta.update(rc=rc, why=why, wall_s=round(time.time() - meta["t0"], 1))
@@ -209,9 +252,11 @@ def finish(rc, why=""):
     sys.exit(rc)
 
 print("python", sys.version, flush=True)
-gpu = subprocess.run("nvidia-smi --query-gpu=name --format=csv,noheader", shell=True, capture_output=True, text=True).stdout.strip()
+smi = shutil.which("nvidia-smi")
+gpu = subprocess.run([smi, "--query-gpu=name", "--format=csv,noheader"], capture_output=True, text=True).stdout.strip() if smi else ""
 meta["gpu"] = gpu; print("GPU:", gpu or "none", flush=True)
-sh("nvidia-smi")
+if smi:
+    run(["nvidia-smi"])
 if "T4" not in gpu:
     finish(3, "WRONG_GPU: need T4 (P100 cannot run the k-Wave CUDA binary, D-016)")
 
@@ -225,18 +270,49 @@ if MODE == "job":
     whl = glob.glob(os.path.dirname(ids[0]) + "/*.whl")
     if len(whl) != 1:
         finish(4, f"WHEEL_COUNT: {whl}")
-    if sh(f"{sys.executable} -m pip install -q '{whl[0]}'").returncode:
-        finish(5, "PIP_INSTALL_FAILED")
-    sh(f"{sys.executable} -m pip install -q --force-reinstall --no-deps '{whl[0]}'")   # same version string, new code
+    if run(PY + ["install", "-q", whl[0] + "[sim]"]).returncode:        # [sim]: everything beyond numpy/scipy
+        finish(1, "PIP_INSTALL_FAILED")
+    run(PY + ["install", "-q", "--force-reinstall", "--no-deps", whl[0]])   # same version string, new code
     for p in glob.glob(K + "/input/*") + glob.glob(K + "/input/*/*"):
         if os.path.basename(p.rstrip("/")) == "ringsim-assets":
             os.environ["RINGSIM_DATA"] = p; meta["assets"] = p
     os.environ["RINGSIM_BUILD_ID"] = EXPECT      # shards record this; kernels have no git
     open(W + "/job.yaml", "w").write(JOB_YAML)
 else:
-    sh(f"{sys.executable} -m pip install -q k-wave-python==0.6.2")
-sh(f"{sys.executable} -m pip show k-wave-python | head -3")
-meta["kwave"] = subprocess.run(f"{sys.executable} -m pip show k-wave-python", shell=True, capture_output=True, text=True).stdout
+    run(PY + ["install", "-q", "k-wave-python==0.6.2"])
+meta["kwave"] = "\n".join(subprocess.run(PY + ["show", "k-wave-python"], capture_output=True, text=True).stdout.splitlines()[:2])
+print(meta["kwave"], flush=True)
+
+if MODE == "bench":
+    import re as _re
+    open(W + "/bench_case.py", "w").write(base64.b64decode("__BENCH_B64__").decode())
+    cases = json.loads(base64.b64decode("__CASES_B64__").decode())
+    ngpu = len([l for l in gpu.splitlines() if l.strip()])
+    def launch(case, dev, tag):
+        tmp = W + "/tmp_" + tag; os.makedirs(tmp, exist_ok=True)   # k-wave-python names its HDF5 files by time
+        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(dev), TMPDIR=tmp)
+        return subprocess.Popen([sys.executable, W + "/bench_case.py", json.dumps(case)], env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    def collect(p):
+        out, _ = p.communicate()
+        print(out[-2500:], flush=True)
+        res = {"error": out[-600:]}
+        for line in reversed(out.splitlines()):
+            if line.startswith("BENCH_RESULT "):
+                res = json.loads(line[len("BENCH_RESULT "):]); break
+        res["kwave_total_s"] = [float(x) for x in _re.findall(r"Total execution time:\s*([\d.]+)s", out)]
+        res["kwave_stage_s"] = [float(x) for x in _re.findall(r"Elapsed time:\s*([\d.]+)s", out)]
+        return res
+    results = [collect(launch(c, 0, c["name"])) for c in cases]
+    dual = None
+    if ngpu >= 2:
+        c2 = [c for c in cases if c["name"] == "ring_dx2.0"][0]
+        t1 = time.time()
+        rs = [collect(p) for p in [launch(c2, d, "dual%d" % d) for d in (0, 1)]]
+        dual = {"case": c2["name"], "wall_s_total": round(time.time() - t1, 2), "per_gpu": rs}
+    meta["bench"] = {"ngpu": ngpu, "cases": results, "dual": dual}
+    ok = all("error" not in r and r.get("finite") for r in results)
+    finish(0 if ok else 1, "" if ok else "BENCH_FAILED")
 
 if MODE == "selftest":
     try:
@@ -251,15 +327,18 @@ if MODE == "selftest":
         from kwave.options.simulation_execution_options import SimulationExecutionOptions
         N, dx, c = 48, 2e-3, 343.0
         dt = 0.3 * dx / c; nt = 300
-        g = kWaveGrid(Vector([N, N, N]), Vector([dx] * 3)); g.setTime(nt, dt)
-        med = kWaveMedium(sound_speed=c, density=1.2)
-        src = kSource(); src.p_mask = np.zeros((N, N, N), bool); src.p_mask[N // 2, N // 2, 10] = True
-        t = np.arange(nt) * dt - 125e-6
-        src.p = (np.exp(-t**2 / (2 * 31.2e-6**2)) * np.sin(2 * np.pi * 22e3 * t))[None, :].astype(np.float32)
-        src.p_mode = "additive"
-        sen = kSensor(np.zeros((N, N, N), bool)); sen.mask[N // 2, N // 2, 20] = True; sen.record = ["p"]
+        def build():   # fresh objects per call: kspaceFirstOrder3D modifies grid/source/sensor in place
+            g = kWaveGrid(Vector([N, N, N]), Vector([dx] * 3)); g.setTime(nt, dt)
+            med = kWaveMedium(sound_speed=c, density=1.2)
+            src = kSource(); src.p_mask = np.zeros((N, N, N), bool); src.p_mask[N // 2, N // 2, 10] = True
+            t = np.arange(nt) * dt - 125e-6
+            src.p = (np.exp(-t**2 / (2 * 31.2e-6**2)) * np.sin(2 * np.pi * 22e3 * t))[None, :].astype(np.float32)
+            src.p_mode = "additive"
+            sen = kSensor(np.zeros((N, N, N), bool)); sen.mask[N // 2, N // 2, 20] = True; sen.record = ["p"]
+            return g, med, src, sen
         res = {}
         for gpu_flag in (False, True):
+            g, med, src, sen = build()
             t1 = time.time()
             o = kspaceFirstOrder3D(kgrid=g, medium=med, source=src, sensor=sen,
                                    simulation_options=SimulationOptions(pml_inside=False, pml_size=10, data_cast="single", save_to_disk=True),
@@ -279,10 +358,83 @@ finish(rc, "" if rc == 0 else "CMD_FAILED")
 '''
 
 
+BENCH_CASE = r'''
+import json, sys, time, warnings
+import numpy as np
+from scipy.ndimage import gaussian_filter
+warnings.filterwarnings("ignore", category=FutureWarning)
+from kwave.data import Vector
+from kwave.kgrid import kWaveGrid
+from kwave.kmedium import kWaveMedium
+from kwave.ksource import kSource
+from kwave.ksensor import kSensor
+from kwave.kspaceFirstOrder3D import kspaceFirstOrder3D
+from kwave.options.simulation_options import SimulationOptions
+from kwave.options.simulation_execution_options import SimulationExecutionOptions
+c = json.loads(sys.argv[1]); N = c["dims"]; dx = c["dx"]; nt = c["nt"]; dt = c["dt"]
+rho = np.full(N, 1.2, np.float32)                      # heterogeneous like a real snapshot: one smoothed
+rho[N[0] // 3: N[0] // 2, N[1] // 4: 3 * N[1] // 4, N[2] // 4: N[2] // 2] = 1000.0   # solid block (D-036), kept
+                                                       # off the grid faces: a solid touching them goes NaN (Q-024)
+rho = gaussian_filter(rho, 0.5).astype(np.float32)
+i0 = (N[0] * 2 // 3, N[1] // 2, N[2] // 2)
+walls = []
+for rep in range(c["reps"]):
+    g = kWaveGrid(Vector(list(N)), Vector([dx] * 3)); g.setTime(nt, dt)      # fresh objects every call
+    med = kWaveMedium(sound_speed=343.0, density=rho)
+    src = kSource(); src.p_mask = np.zeros(N, bool); src.p_mask[i0] = True
+    t = np.arange(nt) * dt - 125e-6
+    src.p = (np.exp(-t**2 / (2 * 31.2e-6**2)) * np.sin(2 * np.pi * 22e3 * t))[None, :].astype(np.float32)
+    src.p_mode = "additive"
+    sen = kSensor(np.zeros(N, bool)); sen.mask[i0[0], i0[1] + 3, i0[2]] = True; sen.record = ["p"]
+    t1 = time.time()
+    o = kspaceFirstOrder3D(kgrid=g, medium=med, source=src, sensor=sen,
+                           simulation_options=SimulationOptions(pml_inside=False, pml_size=10, data_cast="single", save_to_disk=True),
+                           execution_options=SimulationExecutionOptions(is_gpu_simulation=True))
+    walls.append(round(time.time() - t1, 3))
+    p = np.asarray(o["p"])
+print("BENCH_RESULT " + json.dumps(dict(c, wall_s=walls, finite=bool(np.isfinite(p).all()), peak=float(np.abs(p).max()))), flush=True)
+'''
+
+# Ring-sized benchmark (BUILD.md Phase 1, Q-007). Domain = ring-frame hand bounding box estimate
+# (~200 x 110 x 70 mm) + 10 mm air each side; replace with measured scene sizes once MANO scenes exist.
+BENCH_RING_MM = (220.0, 130.0, 90.0)
+
+
+def fast_dims(n: int, pml: int = 10) -> int:
+    m = n
+    while True:
+        x = m + 2 * pml
+        for p in (2, 3, 5, 7):
+            while x % p == 0:
+                x //= p
+        if x == 1:
+            return m
+        m += 1
+
+
+def bench_cases() -> list[dict]:
+    import math
+    fs, n_bins, d_direct, c_sim, cfl = 50000, 54, 5.4e-3, 343.0, 0.3       # ring.yaml signal (D-029)
+    c_max = 331.3 * math.sqrt(1 + 35 / 273.15)
+    sigma = math.sqrt(2 * math.log(2)) / (2 * math.pi * 6000.0)
+    t_end = 8 * sigma + d_direct / c_sim + (c_max / c_sim) * (n_bins / fs) + 0.15e-3   # SOLVER.md time_axis (D-044)
+    cases = []
+    for name, dx_mm, size in (("overhead_25", 2.0, (50.0, 50.0, 50.0)), ("ring_dx2.0", 2.0, BENCH_RING_MM),
+                              ("ring_dx1.5", 1.5, BENCH_RING_MM), ("ring_dx1.0", 1.0, BENCH_RING_MM)):
+        dx = dx_mm * 1e-3
+        k = math.ceil(c_sim / (cfl * dx * fs)); dt = 1.0 / (k * fs)
+        dims = [fast_dims(math.ceil(L / dx_mm)) for L in size]
+        cases.append({"name": name, "dx": dx, "dims": dims, "dt": dt, "nt": math.ceil(t_end / dt), "k": k, "reps": 2,
+                      "cells_with_pml": math.prod(d + 20 for d in dims)})
+    return cases
+
+
 def render_kernel(build: str, mode: str, cmd: str, job_text: str) -> str:
     b64 = lambda s: base64.b64encode(s.encode()).decode()
     return (KERNEL_TEMPLATE.replace("__BUILD_ID__", build).replace("__MODE__", mode)
-            .replace("__CMD_B64__", b64(cmd)).replace("__JOB_B64__", b64(job_text)))
+            .replace("__CMD_B64__", b64(cmd)).replace("__JOB_B64__", b64(job_text))
+            .replace("__BENCH_B64__", b64(BENCH_CASE if mode == "bench" else ""))
+            .replace("__CASES_B64__", b64(json.dumps(bench_cases() if mode == "bench" else []))))
 
 
 def slugify(s: str) -> str:
@@ -324,6 +476,7 @@ def upload_code(cfg: dict, user: str, bid: str, work: Path):
             die(f"dataset processing failed: {txt}", 1)
         if time.time() > deadline:
             die("dataset not ready after 10 min", 4)
+        heartbeat()
         time.sleep(10)
 
 
@@ -356,6 +509,8 @@ def wait_kernel(cfg: dict, ref: str, lock: Lock | None, timeout_min: float) -> s
             last = st
         if st in ("RUNNING", "COMPLETE", "ERROR") and lock:   # datasets are mounted; others may push now
             lock.release(); lock = None
+        elif lock:
+            lock.refresh()
         if st in ("COMPLETE", "ERROR", "CANCEL_ACKNOWLEDGED"):
             return st
         if time.time() - t0 > timeout_min * 60:
@@ -365,8 +520,17 @@ def wait_kernel(cfg: dict, ref: str, lock: Lock | None, timeout_min: float) -> s
 
 
 def pull(ref: str, out: Path) -> dict:
+    shutil.rmtree(out, ignore_errors=True)       # runner scratch: never report a previous run's files
     out.mkdir(parents=True, exist_ok=True)
-    kg("kernels", "output", ref, "-p", str(out))
+    for attempt in (1, 2, 3):                    # transient SSL/HTTP errors happen; the output stays on Kaggle
+        r = kg("kernels", "output", ref, "-p", str(out), check=False)
+        if r.returncode == 0:
+            break
+        if attempt == 3:
+            die(f"kaggle kernels output failed 3 times:\n{r.stdout}\n{r.stderr}\nRetry later with: pull <job_id>", 1)
+        log(f"output download failed (attempt {attempt}); retrying in {15 * attempt} s")
+        if not DRY:
+            time.sleep(15 * attempt)
     meta = {}
     mp = out / "run_meta.json"
     if mp.exists():
@@ -385,9 +549,16 @@ def pull(ref: str, out: Path) -> dict:
 def finish_report(st: str, meta: dict, out: Path):
     log(f"result: kernel={st} rc={meta.get('rc')} why={meta.get('why') or '-'} gpu={meta.get('gpu')} "
         f"wall_s={meta.get('wall_s')} build={meta.get('build_id') or '-'}  files in {out}")
-    if st != "COMPLETE" or meta.get("rc") not in (0, None):
+    if DRY:
+        return
+    if st == "TIMEOUT":
+        sys.exit(4)
+    if not meta:
+        log("NO_RUN_META: kernel output has no run_meta.json; treat the run as failed")
+        sys.exit(1)
+    if st != "COMPLETE" or meta.get("rc") != 0:
         rc = meta.get("rc")
-        sys.exit(3 if rc == 3 else 1)
+        sys.exit(rc if rc in (3, 4) else 1)
 
 
 def cmd_doctor(cfg):
@@ -423,13 +594,50 @@ def cmd_selftest(cfg, a):
     finish_report(st, meta, work / "out")
 
 
+def bench_report(meta: dict) -> str:
+    b = meta.get("bench") or {}
+    rows = ["case         dims          cells+PML  steps  wall_s(min)  kwave_total(min)  snapshots/GPU-h"]
+    for r in b.get("cases", []):
+        if "error" in r:
+            rows.append(f"{r.get('name', '?'):12s} ERROR {r['error'][-200:]!r}")
+            continue
+        w = min(r["wall_s"]); kt = min(r["kwave_total_s"]) if r["kwave_total_s"] else float("nan")
+        rows.append(f"{r['name']:12s} {'x'.join(map(str, r['dims'])):13s} {r['cells_with_pml']:9d}  {r['nt']:5d}  "
+                    f"{w:11.2f}  {kt:16.2f}  {3600 / w:15.0f}")
+    d = b.get("dual")
+    if d:
+        n = sum(len(x.get("wall_s", [])) for x in d["per_gpu"])
+        rows.append(f"two T4s at once, {d['case']}: {n} snapshots in {d['wall_s_total']:.1f} s "
+                    f"-> {3600 * n / d['wall_s_total']:.0f} snapshots/hour for the pair (incl. process start-up)")
+    return "\n".join(rows)
+
+
+def cmd_bench(cfg, a):
+    user = detect_username(cfg)
+    slug = "ringsim-bench"
+    work = stage_dir("bench")
+    script = render_kernel("", "bench", "true", "")
+    with Lock() as lk:
+        push_kernel(cfg, user, slug, "bench", script, work, with_code=False)
+        st = wait_kernel(cfg, f"{user}/{slug}", lk, a.timeout)
+    meta = {} if DRY else pull(f"{user}/{slug}", work / "out")
+    if not DRY:
+        log("bench:\n" + bench_report(meta))
+    finish_report(st, meta, work / "out")
+
+
 def cmd_run(cfg, a):
     job = Path(a.job)
     if not job.is_absolute():
         job = Path.cwd() / job
     if not job.exists():
         die(f"job file not found: {job}", 2)
-    job_id = job.stem
+    m = re.search(r"^job_id:\s*['\"]?([^'\"\s#]+)", job.read_text(encoding="utf-8"), re.M)
+    if not m:
+        die(f"{job.name} has no job_id", 2)
+    job_id = m.group(1)
+    if job_id != job.stem:
+        die(f"job_id '{job_id}' differs from the file name '{job.stem}'; they must match (kernel slug and shard name)", 2)
     user = detect_username(cfg)
     slug = f"ringsim-{slugify(job_id)}"
     work = stage_dir(job_id)
@@ -457,6 +665,7 @@ def main():
     sub = ap.add_subparsers(dest="c", required=True)
     sub.add_parser("doctor")
     s = sub.add_parser("selftest"); s.add_argument("--timeout", type=float, default=30)
+    bp = sub.add_parser("bench"); bp.add_argument("--timeout", type=float, default=45)
     r = sub.add_parser("run"); r.add_argument("job"); r.add_argument("--cmd"); r.add_argument("--no-wait", action="store_true")
     r.add_argument("--timeout", type=float, default=None)
     t = sub.add_parser("status"); t.add_argument("job_id")
@@ -470,11 +679,13 @@ def main():
         cmd_doctor(cfg)
     elif a.c == "selftest":
         cmd_selftest(cfg, a)
+    elif a.c == "bench":
+        cmd_bench(cfg, a)
     elif a.c == "run":
         cmd_run(cfg, a)
     elif a.c in ("status", "pull"):
         user = detect_username(cfg)
-        slug = "ringsim-selftest" if a.job_id == "selftest" else f"ringsim-{slugify(a.job_id)}"
+        slug = f"ringsim-{a.job_id}" if a.job_id in ("selftest", "bench") else f"ringsim-{slugify(a.job_id)}"
         if a.c == "status":
             print(parse_status(kg("kernels", "status", f"{user}/{slug}", check=False).stdout))
         else:

@@ -40,7 +40,8 @@ if a[:2] == ["kernels", "status"]:
     print(f'fakeuser/x has status "KernelWorkerStatus.{(S / "status").read_text()}"'); sys.exit(0)
 if a[:2] == ["kernels", "output"]:
     out = Path(arg("-p")); out.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(S / "kroot" / "working", out, dirs_exist_ok=True); sys.exit(0)
+    ign = shutil.ignore_patterns("run_meta.json") if os.environ.get("FAKE_NO_META") else None
+    shutil.copytree(S / "kroot" / "working", out, dirs_exist_ok=True, ignore=ign); sys.exit(0)
 print("fake kaggle: unhandled", a, file=sys.stderr); sys.exit(9)
 '''
 
@@ -69,9 +70,21 @@ def main():
     (repo / "jobs").mkdir(); (repo / "jobs" / "t_job.yaml").write_text("job_id: t_job\n")
     venv = td / "venv"; run([sys.executable, "-m", "venv", str(venv)])
     py = str(venv / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python"))
-    fk = bin_ / "kaggle"; fk.write_text(FAKE_KAGGLE.replace("__PY__", sys.executable)); fk.chmod(fk.stat().st_mode | stat.S_IEXEC)
-    smi = bin_ / "nvidia-smi"; smi.write_text("#!/bin/sh\necho 'Tesla T4'\n"); smi.chmod(smi.stat().st_mode | stat.S_IEXEC)
-    env = dict(os.environ, KAGGLE_BIN=str(fk), FAKE_STATE=str(state), FAKE_BIN=str(bin_), FAKE_PY=py, TMPDIR=str(td))
+    WIN = os.name == "nt"
+    fake_py = bin_ / "fake_kaggle.py"; fake_py.write_text(FAKE_KAGGLE.replace("__PY__", sys.executable))
+    if WIN:    # Windows cannot execute shebang scripts: use .cmd shims
+        fk = bin_ / "kaggle.cmd"; fk.write_text(f'@"{sys.executable}" "{fake_py}" %*\r\n')
+    else:
+        fk = bin_ / "kaggle"; shutil.copy2(fake_py, fk); fk.chmod(fk.stat().st_mode | stat.S_IEXEC)
+
+    def set_gpu(name):
+        if WIN:
+            (bin_ / "nvidia-smi.cmd").write_text(f"@echo {name}\r\n")
+        else:
+            smi = bin_ / "nvidia-smi"; smi.write_text(f"#!/bin/sh\necho '{name}'\n"); smi.chmod(smi.stat().st_mode | stat.S_IEXEC)
+    set_gpu("Tesla T4")
+    env = dict(os.environ, KAGGLE_BIN=str(fk), FAKE_STATE=str(state), FAKE_BIN=str(bin_), FAKE_PY=py,
+               TMPDIR=str(td), TEMP=str(td), TMP=str(td))
     fails = []
 
     def check(name, cond, detail=""):
@@ -92,16 +105,32 @@ def main():
     r3 = run(R + ["run", "jobs/t_job.yaml", "--cmd", "false"], cwd=repo, env=env)
     check("failing job command -> exit 1", r3.returncode == 1)
 
-    smi.write_text("#!/bin/sh\necho 'Tesla P100-PCIE-16GB'\n")
+    set_gpu("Tesla P100-PCIE-16GB")
     r4 = run(R + ["run", "jobs/t_job.yaml", "--cmd", "true"], cwd=repo, env=env)
     check("P100 -> exit 3", r4.returncode == 3, r4.stdout[-800:] + r4.stderr[-800:])
-    smi.write_text("#!/bin/sh\necho 'Tesla T4'\n")
+    set_gpu("Tesla T4")
+
+    (repo / "jobs" / "renamed.yaml").write_text("job_id: t_job\n")
+    r6 = run(R + ["run", "jobs/renamed.yaml", "--cmd", "true"], cwd=repo, env=env)
+    check("job_id != file name -> exit 2", r6.returncode == 2, r6.stdout[-800:] + r6.stderr[-800:])
+
+    r7 = run(R + ["run", "jobs/t_job.yaml", "--cmd", "python -c \"print(1)\""], cwd=repo, env=dict(env, FAKE_NO_META="1"))
+    check("COMPLETE without run_meta.json -> exit 1", r7.returncode == 1 and "NO_RUN_META" in r7.stdout,
+          r7.stdout[-800:] + r7.stderr[-800:])
+
+    lock = td / "ringsim-kaggle.lock"
+    check("lock released after runs", not lock.exists())
 
     r5 = run(R + ["--dry-run", "run", "jobs/t_job.yaml"], cwd=repo, env=env)
     check("dry-run exits 0 and calls nothing", r5.returncode == 0 and "DRY: " in r5.stdout, r5.stdout[-800:] + r5.stderr[-800:])
 
     k = (repo / "data/kaggle/t_job/kernel/run_job.py")
     check("rendered kernel compiles", k.exists() and run([sys.executable, "-m", "py_compile", str(k)]).returncode == 0)
+
+    r8 = run(R + ["--dry-run", "bench"], cwd=repo, env=env)
+    kb = repo / "data/kaggle/bench/kernel/run_job.py"
+    check("dry-run bench renders a compiling kernel", r8.returncode == 0 and kb.exists()
+          and run([sys.executable, "-m", "py_compile", str(kb)]).returncode == 0, r8.stdout[-800:] + r8.stderr[-800:])
 
     shutil.rmtree(td, ignore_errors=True)
     print("\nALL PASS" if not fails else f"\n{len(fails)} FAILED: {fails}")

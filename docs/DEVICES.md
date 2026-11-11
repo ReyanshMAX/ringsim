@@ -186,3 +186,6 @@ active_pair: [spk, mic]
   If two holes fall in one voxel at the chosen dx, the voxel is used once.
 - Ring parts (USound UT-P2019 speaker, TDK ICS-43434 mic) are recorded for the ring
   hardware suite; their responses are not modelled (Q-011).
+- `fs_hz: 50000` for the ring is Ring-a-Pose's rate. If the Teensy build ends up at another rate,
+  existing shards are read with `dev_override` (DATASET.md, D-046); no re-simulation is needed as
+  long as the new chirp band stays in [16, 28] kHz and the range window fits the sim window.
