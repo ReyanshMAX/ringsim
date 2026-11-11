@@ -50,6 +50,7 @@ comes from the session's free-air capture.
 # ChirpSpec: defined in ringsim.proc.chirp (PROCESSING.md)
 def load_device(name: str) -> DeviceConfig  # raises on any TBD(Q-xxx); reads devices/<name>.yaml, calls load_device_yaml
 def load_device_yaml(text: str) -> DeviceConfig  # same rules; the reader rebuilds a shard's device from attrs (D-055)
+def device_yaml(dev: DeviceConfig) -> str  # yaml.safe_dump(asdict(dev)), dropped ports absent; the shard's device_yaml
 
 # src/ringsim/geometry/poses.py
 @dataclass
@@ -70,10 +71,11 @@ def hand_mesh(pose48: np.ndarray, betas: np.ndarray) -> tuple[trimesh.Trimesh, n
 class Scene:
     meshes: list[trimesh.Trimesh]           # all solids, device frame, metres
     speaker: Port; mic: Port
-    joints21: np.ndarray                    # [21,3] scene frame, metres
-    labels: np.ndarray                      # [20,3] canonical wrist frame, metres (D-025)
-    hand_scale_m: float                     # |wrist → little MCP| (Ring-a-Pose size normalizer)
+    joints21: np.ndarray | None             # [21,3] scene frame, metres; None without a hand (free, plate)
+    labels: np.ndarray | None               # [20,3] canonical wrist frame, metres (D-025); None without a hand
+    hand_scale_m: float | None              # |wrist → little MCP| (Ring-a-Pose size normalizer); None without a hand
 def build_scene(dev: DeviceConfig, pose48, betas, placement: "Placement") -> Scene
+def free_scene(dev: DeviceConfig) -> Scene   # scene: free, meshes=[], hand fields None (Phase 1)
 def snapshot_schedule(dev, seq: PoseSequence, placement, disp_max_m: float) -> "Schedule"   # GEOMETRY.md
 
 # src/ringsim/geometry/voxelize.py
@@ -85,6 +87,8 @@ class Medium:
     origin_m: np.ndarray                    # world coords of voxel (0,0,0)
     src_idx: list[tuple[int,int,int]]       # one per speaker hole (deduplicated)
     mic_idx: list[tuple[int,int,int]]       # one per mic hole; recorded pressures are averaged
+    occ: np.ndarray                         # bool [Nx,Ny,Nz] unsmoothed occupancy; the run-time face guard checks it (D-061)
+    port_covered: bool                      # a port voxel was inside a solid before forcing to air (D-048, D-061)
 def build_medium(scene: Scene, dx: float, c: float, margin_m: float) -> Medium
 
 # src/ringsim/solver/kwave_runner.py
@@ -93,8 +97,11 @@ class SimResult:
     ir: np.ndarray                          # float32 [n_t] pressure at mic (pulse response)
     pulse: np.ndarray                       # float32 [n_t] source signal
     fs_sim: float                           # = k * device fs (SOLVER.md time_axis)
-    wall_s: float
+    wall_s: float                           # the kspaceFirstOrder3D call only (D-063)
 def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> SimResult
+    # = assert medium.c == C_SIM, time_axis, simulate, wall_s
+def simulate(medium: Medium, dt: float, n_t: int, gpu: bool) -> tuple[np.ndarray, np.ndarray]
+    # (ir float32 [n_t] mic-averaged, pulse float32 [n_t]); no c assert (test_temperature_scaling runs 337 m/s through it)
 
 # src/ringsim/proc/*  — see PROCESSING.md for full signatures
 # src/ringsim/dataset/* — see DATASET.md
@@ -115,12 +122,14 @@ def compare_ir(path_a: str, path_b: str, seq_id: str) -> float   # relative L2 o
 ```
 ringsim sim      --job jobs/<job>.yaml [--gpu] [--frames a:b] [--out-dir DIR]
                                                                  # writes <DIR, default data/shards>/<job_id>.h5
+                                                                 # and <DIR>/<job_id>_medium.png; no --gpu: refuses
+                                                                 # Nx·Ny·Nz > 96³ excl. PML (D-062)
 ringsim profile  --shard <h5> --seq <id> --out <png>            # plot profiles + differential; prints
                                                                  # freefield_check as JSON (D-060)
 ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/
 ringsim real     --capture data/captures/<name>.wav --device iphone17pro --out <png>
 ringsim validate plate|hand --sim <h5> --real <dir> --out reports/<name>/
-ringsim converge --job jobs/converge.yaml --dx 2.0,1.5,1.0
+ringsim converge --job jobs/converge.yaml --dx 2.0,1.5,1.0 [--ref-dx 0.75]   # SOLVER.md
 ```
 
 Kaggle is not a `ringsim` subcommand: `python tools/kaggle_run.py run jobs/<job>.yaml` (INFRA.md, D-038).
