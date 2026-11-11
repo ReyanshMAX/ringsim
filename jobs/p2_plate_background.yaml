@@ -1,0 +1,14 @@
+# Phase 2 Protocol B sim background (VALIDATION.md, D-047): iphone17pro + clamp, no plate; seq_id "background" (D-071).
+# Clamp box TBD(Q-027). Real-comparison sims also wait for Protocol A (Q-005, D-071).
+job_id: p2_plate_background
+device: iphone17pro
+scene: plate
+dx_mm: 2.0
+placement:
+  plate: null
+  rig_boxes: "TBD(Q-027)"
+poses:
+  source: plate
+  n_frames: 1
+dr: null
+seed: 0

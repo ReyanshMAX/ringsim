@@ -14,7 +14,7 @@ def _not_built(name: str, phase: int) -> None:
 
 
 CPU_MAX_CELLS = 96 ** 3          # D-062: sim without --gpu refuses Nx*Ny*Nz (excluding PML) above this
-SCENE_PHASE = {"plate": 2, "hand": 3}
+SCENE_PHASE = {"hand": 3}
 
 
 class CpuGridTooLarge(RuntimeError):
@@ -28,7 +28,7 @@ def cmd_sim(args: argparse.Namespace) -> int:
     from ringsim.dataset.jobspec import load_job
     from ringsim.dataset.writer import ShardWriter
     from ringsim.devices.config import load_device
-    from ringsim.geometry.scene import free_scene
+    from ringsim.geometry.scene import Placement, device_scene, free_scene, plate_scene
     from ringsim.geometry.voxelize import SolidNearGridFace, build_medium, save_medium_png
     from ringsim.proc.physics import C_SIM
     from ringsim.solver.constants import DOMAIN_MARGIN_M
@@ -37,18 +37,27 @@ def cmd_sim(args: argparse.Namespace) -> int:
     job = load_job(args.job)
     if job.scene in SCENE_PHASE:
         _not_built(f"sim scene {job.scene}", SCENE_PHASE[job.scene])
-    if job.scene != "free":
+    if job.scene not in ("free", "plate"):
         raise ValueError(f"unknown scene {job.scene!r}")
     if args.frames is not None:
         raise NotImplementedError("--frames on a static scene: pending the lead (CLI Q-a)")
     dev = load_device(job.device)
     out_dir = Path(args.out_dir) if args.out_dir else Path("data") / "shards"
     out_dir.mkdir(parents=True, exist_ok=True)
-    seq_id = "free"                                   # D-060
+    if job.scene == "free":
+        seq_id = "free"                               # D-060
+        scene, ref_scene = free_scene(dev), free_scene(dev)
+    else:
+        placement = Placement.from_job(job.placement)
+        seq_id = "plate" if placement.plate is not None else "background"   # D-071, D-078
+        scene, ref_scene = plate_scene(dev, placement), device_scene(dev, placement)   # ref: body + rig (D-042)
+    if job.poses["source"] != job.scene:
+        raise ValueError(f"poses.source must be {job.scene!r} for scene {job.scene} (DATASET.md), "
+                         f"got {job.poses['source']!r}")
 
     shard = out_dir / f"{job.job_id}.h5"
     try:
-        medium = build_medium(free_scene(dev), job.dx_m, C_SIM, DOMAIN_MARGIN_M)
+        medium = build_medium(scene, job.dx_m, C_SIM, DOMAIN_MARGIN_M)
     except SolidNearGridFace as e:                    # GEOMETRY.md rejection rule (D-053)
         with ShardWriter(str(shard), job, dev) as w:
             w.fail_sequence(seq_id, e.reason)
@@ -88,7 +97,7 @@ def cmd_sim(args: argparse.Namespace) -> int:
             return 1
         w.write_snapshot(seq_id, 0, res, port_covered=medium.port_covered)
         # D-056: ref_ir is always its own call of the device-only scene, even where it equals the sim scene
-        ref_medium = build_medium(free_scene(dev), job.dx_m, C_SIM, DOMAIN_MARGIN_M)
+        ref_medium = build_medium(ref_scene, job.dx_m, C_SIM, DOMAIN_MARGIN_M)
         ref = run_checked(ref_medium, "ref_ir")
         if ref is None:
             return 1

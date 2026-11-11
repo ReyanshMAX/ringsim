@@ -1,0 +1,15 @@
+# Phase 2 Protocol B plate job (VALIDATION.md): iphone17pro, plate at 110 mm, dx 2 mm, 1 static frame.
+# Plate 100 x 100 mm (VALIDATION.md rig), thickness = the real board's and the clamp box: both TBD(Q-027), D-071.
+# Real-comparison sims also wait for Protocol A (Q-005, D-071).
+job_id: p2_plate_110
+device: iphone17pro
+scene: plate
+dx_mm: 2.0
+placement:
+  plate: {size_mm: [100, 100, "TBD(Q-027)"], distance_mm: 110}
+  rig_boxes: "TBD(Q-027)"
+poses:
+  source: plate            # DATASET.md: static scene source = "<scene>"
+  n_frames: 1
+dr: null
+seed: 0

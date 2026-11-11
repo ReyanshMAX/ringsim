@@ -102,7 +102,7 @@ def test_cpu_limit_is_96_cubed():
     assert cli.CPU_MAX_CELLS == 96 ** 3
 
 
-@pytest.mark.parametrize("scene, phase", [("plate", "Phase 2"), ("hand", "Phase 3")])
+@pytest.mark.parametrize("scene, phase", [("hand", "Phase 3")])
 def test_later_scenes_name_their_phase(tmp_path, scene, phase):
     job = tmp_path / "x.yaml"
     job.write_text((REPO / "jobs" / "p1_free.yaml").read_text().replace("job_id: p1_free", "job_id: x")
