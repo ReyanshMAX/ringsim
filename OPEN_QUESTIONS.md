@@ -208,3 +208,15 @@ then `jobs/p2_plate_*.yaml` carry `TBD(Q-027)` for the plate thickness and `rig_
 - **Blocking:** Phase 2 real-comparison plate sims and the sim background (not the Q-020 check, which runs clamp out)
 - **Options:** none; a measurement by the user, written to `session.json` (clamp) and the plate jobs
 - **Depends on it:** `jobs/p2_plate_*.yaml`, `session.json`
+
+## Q-028: Alignment shift when the plate echo is as strong as the direct path
+
+`align_direct_path` takes the earliest envelope max >= 0.5·max. Synthetic checks (seat 3, d17a703; seat 4, 04a67f9):
+the offset is stable for echoes up to 0.6× the direct path, shifts by +1 sample at >= 1.0×, and locks onto the echo
+at 3×. A one-sample shift between a plate take and the background leaves a direct-path residue at bin 3 after
+background subtraction, which metric 1 (peak beyond bin 2) can pick instead of the plate echo, in sim and real alike.
+On the phone the plate echo should be well under the direct path, so it may not occur.
+- **Blocking:** nothing yet; watch for peak bin 3 at 80 / 110 mm in the first real `validate plate` report
+- **Options:** align background and plate takes on a shared direct-path template; exclude bins 0..3 from the
+  peak search; sub-sample alignment
+- **Depends on it:** `validation/plate.py`, the Phase 2 peak-bin criterion
