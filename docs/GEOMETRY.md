@@ -210,7 +210,12 @@ def snapshot_schedule(dev, seq: PoseSequence, placement, disp_max_m: float) -> S
 
 Reference scene (D-042): every sequence also gets one device-only snapshot, `build_scene` with no
 hand mesh, no forearm and no plate: the phone body (phone) or the sequence's ring mesh (ring),
-same dx and grid origin rule. Its IR is stored as `ref_ir`.
+same dx and grid origin rule. Its IR is stored as `ref_ir`. It is always its own k-Wave call, also when it
+equals the sim scene (`scene: free`, body none): one code path for every scene (D-056).
+
+Free scene (Phase 1): `free_scene(dev) -> Scene` with `meshes=[]`, speaker and mic from `dev.active_pair`, and
+`joints21`, `labels`, `hand_scale_m` all `None` (typed `| None`; DATASET.md omits them for free and plate).
+`build_scene` stays the hand-scene constructor.
 
 `disp_max_m` comes from the job's `motion.snapshot_disp_mm` (Q-019). Sequence-level DR parameters
 (betas, ring rotation and shift) are the same for every snapshot in a sequence.
@@ -264,6 +269,8 @@ def build_medium(scene, dx, c, margin_m) -> Medium:
     #    Port voxels are checked against the UNSMOOTHED occupancy (step 5).
     # 5. port voxel = round((port.pos + dx*port.normal - origin)/dx); record covered = occ[port]
     #    (before forcing), then set rho[port] = RHO_AIR (D-048). Never assert, never shift a port.
+    # Medium also carries occ (bool, unsmoothed occupancy; simulate re-checks the 3b guard on it) and
+    # port_covered = any port voxel covered (the CLI passes it to the writer), D-061.
 ```
 
 ## Notes
@@ -275,4 +282,5 @@ def build_medium(scene, dx, c, margin_m) -> Medium:
   it must match the real arm: VALIDATION.md Protocol C sets `hand_rot_deg` so the
   forearm points away from the phone, as in the real rig.
 - Save a 3-slice PNG of `rho` (xy/xz/yz through the mic voxel) for the first frame
-  of every job: `data/shards/<job_id>_medium.png`. This is the cheapest geometry check.
+  of every job: `<out-dir>/<job_id>_medium.png` (`voxelize.save_medium_png`; `--out-dir` defaults to
+  data/shards; on Kaggle it comes back in `out/`). This is the cheapest geometry check.

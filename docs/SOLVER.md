@@ -71,7 +71,7 @@ def fast_dims(n: int) -> int:
     # smallest m >= n such that (m + 2*PML_SIZE) has no prime factor > 7
 ```
 
-PPW check: `c / 28e3 / dx >= PPW_MIN`, else raise. (dx = 2 mm → 6.1.)
+PPW check: `c / 28e3 / dx >= PPW_MIN`, else raise (`grid.check_ppw`, called by `simulate`). (dx = 2 mm → 6.1.)
 
 ## Runner
 
@@ -94,9 +94,16 @@ from kwave.options.simulation_options import SimulationOptions
 from kwave.options.simulation_execution_options import SimulationExecutionOptions
 
 def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> SimResult:
-    assert medium.c == C_SIM                                # D-037
+    assert medium.c == C_SIM                                # D-037 (raises ValueError)
     d_direct = medium.dx * min(np.linalg.norm(np.subtract(s, m)) for s in medium.src_idx for m in medium.mic_idx)
     dt, n_t, k = time_axis(medium.dx, range_window_m, fs_device, d_direct)
+    ir, pulse = simulate(medium, dt, n_t, gpu)
+    return SimResult(ir=ir, pulse=pulse, fs_sim=1/dt, wall_s=<kspaceFirstOrder3D call only, D-063>)
+
+def simulate(medium: Medium, dt: float, n_t: int, gpu: bool) -> tuple[np.ndarray, np.ndarray]:
+    # (ir float32 [n_t] mic-averaged, pulse float32 [n_t]) at the medium's own c: no C_SIM assert, so the
+    # slow temperature test can run 337 m/s (lead ruling 2026-11-11). Refuses before k-Wave: PortCollision,
+    # PPW check, face guard on medium.occ.
     N = medium.rho.shape
     kgrid = kWaveGrid(Vector(list(N)), Vector([medium.dx]*3))
     kgrid.setTime(n_t, dt)
@@ -116,8 +123,7 @@ def run_ir(medium: Medium, range_window_m: float, fs_device: int, gpu: bool) -> 
     out = kspaceFirstOrder3D(kgrid=kgrid, medium=km, source=src, sensor=sen,
                              simulation_options=opts, execution_options=ex)
     # out["p"] is [n_t, n_mic_pts] (measured, smoke run 2026-10-14); average the mic holes
-    return SimResult(ir=np.asarray(out["p"]).reshape(n_t, len(medium.mic_idx)).mean(1).astype(np.float32),
-                     pulse=pulse, fs_sim=1/dt, wall_s=...)
+    return np.asarray(out["p"]).reshape(n_t, len(medium.mic_idx)).mean(1).astype(np.float32), pulse
 ```
 
 Speaker/mic coincidence: if any `src_idx` equals any `mic_idx` (possible on a ring at coarse dx),
@@ -125,7 +131,8 @@ raise `PortCollision`; never silently shift a port.
 
 No solid may lie within 3 cells of any grid face (D-053; `build_medium` guards it): a solid touching
 a face goes NaN within ~25 steps, with PML 10 or 20 cells, `pml_alpha` 1.0, or `pml_inside=True`
-(T4 diagnostics 2026-11-10). `run_ir` re-checks the guard on `medium.rho` and raises before calling k-Wave.
+(T4 diagnostics 2026-11-10). `simulate` (so `run_ir` too) re-checks the guard on `medium.occ`, the unsmoothed occupancy (D-061), and raises
+`SolidNearGridFace` before calling k-Wave.
 
 Build fresh `kWaveGrid` / `kWaveMedium` / `kSource` / `kSensor` objects for every call. With
 `pml_inside=False`, `kspaceFirstOrder3D` modifies them in place, and reusing them for a second call
