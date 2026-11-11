@@ -160,8 +160,59 @@ def cmd_export_tx(args: argparse.Namespace) -> int:
     return 0
 
 
+REAL_FS_HZ = 48000               # real iOS captures are 48 kHz, never resampled (PROCESSING.md Notes)
+
+
 def cmd_real(args: argparse.Namespace) -> int:
-    _not_built("real", 2)
+    """One real capture through proc (PROCESSING.md Notes, D-070): own direct-path offset, frame 0 dropped, raw
+    signed profiles. Plots them and prints JSON: the direct-path bin (CAPTURE_APP.md wants 0 with no target) and the
+    frame-to-frame spread (metrics.noise_floor)."""
+    import json
+    import os
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from ringsim.devices.config import load_device
+    from ringsim.proc.chirp import tx_frame
+    from ringsim.proc.profile import align_direct_path, cfmcw_profiles, frame_stream, magnitude
+    from ringsim.validation.metrics import noise_floor
+    from ringsim.validation.real import load_capture
+
+    dev = load_device(args.device)
+    if dev.fs_hz != REAL_FS_HZ:
+        raise ValueError(f"ringsim real: device {dev.name} runs at {dev.fs_hz} Hz; real captures are {REAL_FS_HZ} Hz")
+    stream, meta = load_capture(args.capture)
+    tx = tx_frame(dev.chirp, REAL_FS_HZ)
+    band = (min(dev.chirp.f0_hz, dev.chirp.f1_hz), max(dev.chirp.f0_hz, dev.chirp.f1_hz))
+    offset = align_direct_path(stream, tx, band, REAL_FS_HZ)
+    frames = frame_stream(stream, offset, len(tx))[1:]          # frame 0: no echo tail from a previous period
+    if len(frames) < 2:
+        raise ValueError(f"{os.path.basename(args.capture)}: {len(frames)} frames after alignment and dropping "
+                         "frame 0; need >= 2")
+    prof = cfmcw_profiles(frames, tx, band, REAL_FS_HZ, dev.n_range_bins)
+    mag = magnitude(prof)
+    mean_mag = magnitude(prof.astype(np.float64).mean(axis=0)[None, :])[0]
+    out = {"take": meta.get("take", os.path.splitext(os.path.basename(args.capture))[0]), "offset": int(offset),
+           "n_frames": int(len(prof)), "direct_peak_bin": int(np.argmax(mean_mag)),
+           "spread_raw": noise_floor(prof, skip_frames=0)}
+
+    fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+    for k in range(len(mag)):
+        ax[0].plot(mag[k], color="0.7", lw=0.5)
+    ax[0].plot(mean_mag, color="k", lw=1.5, label="mean profile")
+    ax[0].set_xlabel("range bin"); ax[0].set_ylabel("|profile|"); ax[0].legend()
+    ax[0].set_title(f"{out['take']}: raw profiles, {out['n_frames']} frames (frame 0 dropped), offset {offset}")
+    im = ax[1].imshow(prof.T, aspect="auto", origin="lower", cmap="RdBu_r")
+    ax[1].set_xlabel("frame"); ax[1].set_ylabel("range bin"); ax[1].set_title("signed profiles")
+    fig.colorbar(im, ax=ax[1])
+    fig.tight_layout()
+    fig.savefig(args.out, dpi=100)
+    plt.close(fig)
+    print(json.dumps(out, indent=1))
+    return 0
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -194,7 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out", required=True)
     s.set_defaults(func=cmd_export_tx)
 
-    s = sub.add_parser("real", help="process a real capture (Phase 2)")
+    s = sub.add_parser("real", help="process one real capture: profiles PNG + JSON")
     s.add_argument("--capture", required=True, help="data/captures/<name>.wav")
     s.add_argument("--device", required=True)
     s.add_argument("--out", required=True, help="<png>")
