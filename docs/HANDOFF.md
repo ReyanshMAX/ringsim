@@ -41,4 +41,38 @@ Room: `#ringsim`. Main at round start: ea6dfc5.
 
 ## Seat 4 DATASET AND VALIDATION
 
+**On main (all in my lane):** 6e9942f conftest · 4ab63ef JobSpec + ShardWriter · 95e5267 writer tolerance + DATASET.md ·
+17f3187 reader · 4888d46 freefield + tests · 2751496 reader ref stream exactly 51 frames · this section (the commit that carries it).
+
+**Evidence**
+- Full suite, worktree at main 0e66bec (round end): `python -m pytest -q -rs` -> 115 passed, 2 deselected in 18.47s, 0 skipped
+  (the 2 deselected are the slow temperature tests, green on Kaggle per seat 2). Earlier: 103 passed at 2751496, 112 at 0a1c2ba, 115 at 609b02a.
+- CPU shard (Kaggle CPU, build_id c12f529749d8, tree 9fec03d), my own run on a copy: attr dump vs DATASET.md static scene:
+  file attrs / seq attrs / seq datasets missing: none, extra: none.
+- `freefield_check` 48 kHz: raw peak bin 3 vs 3, rel_l2 0.0521, gain phase 0.120 rad, arrival -0.888 sim samples, pass True;
+  ref (reported): peak 0/0, rel_l2 2.85e-05. 44.1 kHz override (D-058): raw 3/3, rel_l2 0.0474, arrival -0.888, pass True.
+- T4 shard (build_id fb85a88049c9, tree 609b02a), my run on copies: `compare_ir(cpu, t4, "free")` = 1.331e-05 (< 1e-3);
+  T4 freefield_check pass True, raw peak 3 vs 3, rel_l2 0.0521, arrival -0.888 samples, attr dump none missing / none extra,
+  wall_s [2.3135] s. CPU and T4 trees differ in src only in cli.py (D-066
+  wrapper) and proc/ir.py (read-time int check); geometry/ and solver/ identical, so the IR comparison is valid.
+
+**What I built**
+- `dataset/jobspec.py`: JobSpec, load_job, job_from_dict, job_yaml, ConfigIncomplete. Only `dx_mm` -> `dx_m` is converted; the
+  nested blocks (placement, poses, motion, dr) stay in the YAML's units. When GEOMETRY.md types them they must convert to SI at
+  load (ARCHITECTURE Notes).
+- `dataset/writer.py`: ShardWriter per DATASET.md. Added (lead-approved): `write_ref_ir`, `write_snapshot(..., port_covered)`.
+  Hand schedules raise NotImplementedError (D-025 label frame, Phase 3). No NaN check in the writer: D-066 puts it in the CLI.
+- `dataset/reader.py`: load_sequence (ref/raw, temp_c, dev_override rules, partial-shard rule, SequenceFailed), list_sequences,
+  SeqSample, `profiles_from_arrays` (shared with validation). snr_db not None -> NotImplementedError naming Q-016.
+  The reference and the data are each aligned on their own direct-path offset (Q-026, a Phase 3 question).
+- `validation/freefield.py`: freefield_check, compare_ir, shard_has_ref_ir, monopole_ir. Readings the lead confirmed: window
+  rule = override window <= shard window; complex gain on analytic signals; arrival = argmax |hilbert(ir)| vs (d/c + PULSE_DELAY).
+- `randomize.py`: nothing written (lead ruling; Phase 5).
+- Tests: test_dataset_writer (9), test_dataset_reader (13), test_validation_freefield (7), conftest fixtures.
+
+**Open / next**
+- Phase 2 (not started): plate sequences (writer already takes schedule=None for `plate`), real-capture side of validation.
+- Q-016 (noise model), Q-025 (--frames), Q-026 (reference offset).
+- Worktree note: files I write on Windows get CRLF; `git diff --ignore-space-at-eol` is empty against main.
+
 ## Seat 5 SPECIALIST (off)
