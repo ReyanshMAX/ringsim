@@ -106,6 +106,23 @@ and stored as the default in `UserDefaults` (`txChannel`). Input tap on
 (float32, 48 kHz, mono). Start the tap first, then the player, so the first tx frame
 is captured (alignment uses the direct path, D-019).
 
+Take rules (D-073):
+- 48 kHz everywhere or no take: the session rate, the input node's native format, the
+  output node's format and the tx WAV's file rate must all be 48000 (the tx WAV must also
+  be mono); otherwise the take is refused, never resampled.
+- Built-in only: after configuration every route output must be `builtInSpeaker` or
+  `builtInReceiver` and every input `builtInMic`; otherwise the take is refused.
+- Length: the take holds exactly duration × 48000 frames; the tap chunk that crosses it
+  is cut. `duration_s` in the JSON = frames written / 48000.
+- Abort: a route change mid-take (the route's port types + UIDs differ from those at take
+  start; a notification with the same route does not count) or an audio-session
+  interruption aborts the take, deletes its partial files and logs it.
+
+## Bundle
+
+XcodeGen adds `Resources` as a group, so Xcode copies `Resources/tx/*.wav` flat into the
+app bundle root; the app lists the tx files as every `.wav` at the bundle root.
+
 ## Metadata JSON (per take)
 
 ```json
@@ -133,6 +150,14 @@ is captured (alignment uses the direct path, D-019).
 Latency fields are recorded from `AVAudioSession` for diagnostics only; processing
 does not use them (D-019). `device_model` from `utsname`; do not hardcode.
 
+Field rules (D-073). Every key is always written; no other keys.
+- `take` = the saved file stem after `_2`/`_3` dedup; `label` = the raw UI text.
+- `tx_sha256` = SHA-256 of the tx WAV file bytes, lowercase hex.
+- `duration_s` = frames written / 48000 (see "Take rules").
+- `input_latency_s`, `output_latency_s`, `io_buffer_s` are read at Record start.
+- `data_source_name` / `polar_pattern` = the route input's selected data source and its
+  selected polar pattern (lowercased, e.g. `omnidirectional`); JSON `null` when unavailable.
+
 ## Debug log (D-028)
 
 Sideloaded builds have no debugger or console. `DebugLog` keeps the last 500 lines
@@ -143,10 +168,16 @@ and file write results. A "Log" tab shows it with a Copy button.
 
 ## UI
 
-Default route/mic: `bottomSpeaker` + `bottom` (D-023), tx channel from `UserDefaults`. Single screen (includes a tx-channel picker: left / right / both): route picker, mic picker, tx file picker (bundle `tx/`), take label
-text field, duration stepper (1–60 s), Record button (disabled while recording),
+Default route/mic: `bottomSpeaker` + `bottom` (D-023), tx channel from `UserDefaults`. Single screen (includes a tx-channel picker: left / right / both): route picker, mic picker, tx file picker (the bundle's tx WAVs, see "Bundle"), take label
+text field, duration stepper (1–60 s, 1 s steps), Record button (disabled while recording),
 list of saved takes with delete. Files saved to the app's Documents dir as
 `<label>.wav` + `<label>.json`; duplicate labels get `_2`, `_3`.
+
+- tx channel (D-073): no default. Until `UserDefaults` holds `txChannel` the picker shows "not
+  set" and Record is disabled; picking a channel writes it to `UserDefaults`.
+- tx file: starts unset ("none"); Record is disabled until one is picked (D-074).
+- Label: Record is disabled while the label is empty or has a character outside
+  `[A-Za-z0-9_.-]`.
 
 ## CI build
 

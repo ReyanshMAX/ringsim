@@ -1,0 +1,23 @@
+# .github/workflows/ios.yml
+name: ios
+on: {push: {paths: ["capture-app/**", ".github/workflows/ios.yml"]}, workflow_dispatch: {}}
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: cd capture-app && xcodegen generate
+      - name: Archive unsigned          # same recipe as lapse-app's `ipa` job
+        run: |
+          cd capture-app && xcodebuild -project RingCapture.xcodeproj -scheme RingCapture \
+            -configuration Debug -destination 'generic/platform=iOS' \
+            -archivePath build/RingCapture.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
+      - name: Package .ipa
+        run: |
+          cd capture-app && mkdir -p Payload
+          cp -R build/RingCapture.xcarchive/Products/Applications/RingCapture.app Payload/
+          zip -qry RingCapture.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: {name: RingCapture-unsigned-ipa, path: capture-app/RingCapture.ipa}

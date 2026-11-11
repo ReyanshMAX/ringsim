@@ -1,0 +1,17 @@
+name: RingCapture
+options:
+  bundleIdPrefix: com.placeholder        # sideloader rewrites the bundle ID
+  deploymentTarget: {iOS: "17.0"}
+targets:
+  RingCapture:
+    type: application
+    platform: iOS
+    sources: [Sources, Resources]
+    info:
+      path: Info.plist
+      properties:
+        NSMicrophoneUsageDescription: "Records acoustic echoes for the ring project."
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]   # fixes stereo channel mapping
+    settings: {base: {PRODUCT_NAME: RingCapture, MARKETING_VERSION: "0.1.0", CURRENT_PROJECT_VERSION: "1"}}
