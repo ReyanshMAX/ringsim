@@ -1,4 +1,4 @@
-"""Reader on synthetic shards (no k-Wave). Tests that run the proc chain skip until ringsim.proc.ir/profile exist."""
+"""Reader on synthetic shards (no k-Wave)."""
 import dataclasses
 
 import numpy as np
@@ -88,14 +88,8 @@ def test_unwritten_sequence_has_no_frames(shard_path):
         load_sequence(shard_path, "free", None, None, None, mode="raw")
 
 
-# ---- needs ringsim.proc.ir / profile -------------------------------------------------------------------
-@pytest.fixture
-def proc():
-    pytest.importorskip("ringsim.proc.ir")
-    pytest.importorskip("ringsim.proc.profile")
-
-
-def test_round_trip_both_modes(shard, proc):
+# ---- the proc chain ------------------------------------------------------------------------------------
+def test_round_trip_both_modes(shard):
     for mode in ("ref", "raw"):
         s = load_sequence(shard, "free", None, None, None, mode=mode)
         assert s.profiles.shape == (3, 84) and s.diff.shape == (2, 84) and s.labels is None
@@ -107,13 +101,13 @@ def test_round_trip_both_modes(shard, proc):
     assert not np.allclose(raw.profiles, ref.profiles)
 
 
-def test_temperature_changes_profiles(shard, proc):
+def test_temperature_changes_profiles(shard):
     a = load_sequence(shard, "free", None, None, None, mode="raw")
     b = load_sequence(shard, "free", None, 30.0, None, mode="raw")
     assert b.meta["alpha"] > 1.0 and not np.allclose(a.profiles, b.profiles)
 
 
-def test_override_44k_shape(shard, proc):
+def test_override_44k_shape(shard):
     from ringsim.proc import ChirpSpec
     dev = load_device("test_pair")
     ov = dataclasses.replace(dev, fs_hz=44100, n_range_bins=77,
