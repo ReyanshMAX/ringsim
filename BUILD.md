@@ -67,7 +67,7 @@ src/ringsim/dataset/reader.py      load_sequence(path, seq_id, snr_db, temp_c, r
 - [ ] Recorded IR arrival time matches `0.100/c + PULSE_DELAY` within 2 sim samples.
 - [ ] `python tools/kaggle_run.py run jobs/p1_free.yaml` exits 0 on a T4 with a matching `BUILD_ID` (INFRA.md) and writes `data/shards/p1_free.h5`; that shard's IR matches the CPU shard to 1e-3 relative L2.
 - [ ] Per-frame `wall_s` for CPU and T4 written to STATUS.md.
-- [ ] `python tools/kaggle_run.py bench` result in STATUS.md Measurements (ring-sized grids, 1 and 2 T4s; run early, it needs
+- [x] `python tools/kaggle_run.py bench` result in STATUS.md Measurements (ring-sized grids, 1 and 2 T4s; run early, it needs
       no package code). Re-run with measured scene sizes once Phase 3 builds real hand scenes, and again if the ring gate or
       the forearm check (Phase 5) changes dx or the domain.
 

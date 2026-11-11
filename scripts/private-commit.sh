@@ -24,7 +24,7 @@ for path in "$@"; do
   fi
 done
 
-INDEX="$(mktemp -t seatsindex)"
+INDEX="$(mktemp -t seatsindex.XXXXXX)"
 export GIT_INDEX_FILE="$INDEX"
 git -C "$REPO" read-tree "$MAIN"
 while IFS= read -r path; do
