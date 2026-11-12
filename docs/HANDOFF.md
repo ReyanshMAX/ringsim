@@ -98,6 +98,33 @@ Next: Phase 2 device criteria as the user's captures arrive (Protocol A, Protoco
 
 ## Seat 4 DATASET AND VALIDATION
 
+Shas on main (all through `scripts/private-commit.sh`):
+- cbe4a7a `validation/real.py` load_capture (.wav only) + `tests/test_dataset_plate.py` (static plate shard, S = 1; writer/reader needed no code change)
+- c95284d `validation/sweep.py` (response, phase_residual), `validation/metrics.py` (plate_metrics, noise_floor, free_air_drift), `load_session`; VALIDATION.md
+- bb3c857 load_capture adds `meta["session"]` (session.json beside the take, None if absent)
+- 74b4c37 metrics docstrings (D-079: noise floor not background-subtracted; drift frames >= n_avg + 1)
+- 04a67f9 `validation/plate.py` plate_inputs / plate_report (D-070, D-078..D-080); take names in VALIDATION.md
+- e8104a7 D-083: take with < 3 frames after alignment raises naming it; report key `noise_floor_basis` "pooled over takes"
+- 77432a7 `validation/protocol_a.py` (+ `sweep.noise_floor_response`, no alignment, mean power, D-089), rgrille / mirrored (D-087), report.md; load_capture accepts null tx_file / tx_sha256 (D-088); VALIDATION.md
+- 60b547a plate.py re-raises align_direct_path's ValueError naming the take (`from err`); plate test starts up to 3000 samples (D-086)
+- this commit: this section + `nextsessions/PASTE-SEAT4-2026-11-11.txt`
+
+Evidence (command -> output):
+- `pytest -q -rs` on main a071e9e (job 0) -> 115 passed, 2 deselected, 0 skipped
+- `pytest -q` on main 1c15710 -> 197 passed, 2 deselected; on 89cc68e + mine -> 206 passed; on 60b547a -> 240 passed, 2 deselected, 6 warnings in 155.41s (0 skipped)
+- my lane files (`pytest -q tests/test_dataset_reader.py tests/test_dataset_writer.py tests/test_dataset_plate.py tests/test_validation_freefield.py tests/test_validation_real.py tests/test_validation_sweep.py tests/test_validation_metrics.py tests/test_validation_plate.py tests/test_validation_protocol_a.py`) -> 63 passed in 88.85s
+- not run: the full suite after 94a00ed (docs and PASTE files only since 60b547a, plus seat 3's 3ca680e which was already in the 60b547a run)
+
+Reviews done (read-only, no compiler for Swift): 6e847dc (4 findings, all fixed: mic permission 1c15710, UILaunchScreen + SWIFT_VERSION 446d7fb, fail() order 1c15710), 1c15710, 446d7fb, 22660b7 (no defects; one device risk: a no-playback take has no player, so if it records empty connect inputNode to a muted mixer), 89cc68e `ringsim real` (calls load_capture / noise_floor as signed).
+
+Decisions used: D-068, D-070, D-074, D-078, D-079, D-080, D-083, D-086, D-087, D-088, D-089.
+
+Open items:
+- Q-028: with the plate echo as strong as the direct path (80 / 110 mm at gain 1 in the synthetic rig) alignment moves a sample against the background take and leaves a direct-path residue at bin 3, which metric 1 (peak beyond bin 2) picks, in sim and real alike. My plate test uses echo gain 0.3 for this reason.
+- Everything here ran on synthetic WAVs and synthetic shards. Real behaviour of sweep alignment, plate_report and protocol_a is unknown until the user's captures arrive.
+- Protocol A cannot test a no-playback floor on real data until the app build with "none (no playback)" is installed.
+- The 6 warnings in the full suite come from other seats' tests and were not looked at.
+
 ## Seat 5 SPECIALIST (capture app)
 
 Shas on main (all through `scripts/private-commit.sh`, lane files only):
