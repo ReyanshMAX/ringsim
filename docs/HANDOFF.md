@@ -37,6 +37,58 @@ scene, Q-020 method, capture-app details). New: Q-027 (rig measurements: plate t
 
 ## Seat 2 SIM
 
+Shas on main (all through `scripts/private-commit.sh`):
+- 113a9f8 geometry: box_mesh, body_meshes (body + plateau), rig_box_meshes, plate_mesh; GEOMETRY.md Placement + S2-9 datum
+- 4e463aa geometry: D-067 analytic box fractions (exact union, rho linear, σ 0.5 on top, port covered <=> frac >= 0.5,
+  occ = frac > 0), D-075 lattice origin, Scene.boxes, Placement.from_job, device_scene, plate_scene; Q-017 test; GEOMETRY.md
+- b5d5c37 cli: `ringsim export-tx` writes phone_tx.wav + sweep_16k_24k_2s.wav (D-077)
+- 3e96229 cli: `ringsim sim` scene plate (seq_id plate / background, ref_ir = device_scene); jobs/p2_plate_{80,110,140,170,200,background}.yaml with TBD(Q-027)
+- 472bfcb jobs: p2_q020_00..09 (80.0..81.8 mm) + p2_q020_rigid (300 x 300 x 10 @ 80), t = 10 mm Q-020-only (D-081)
+- 89cc68e cli: `ringsim real` (own offset, frame 0 dropped, raw profiles; JSON take/offset/n_frames/direct_peak_bin/spread_raw)
+- a4782d2 cli: `ringsim validate plate` -> report.md + mean_profiles_{ref,raw}.png + differential_{ref,raw}.png + report.json (D-078)
+- c64a4db cli: `ringsim real` names the take when align_direct_path raises; real test starts 477 / 777 / 6000 (D-086)
+- subcell.py: drafted by seat 2, handed to seat 3 (D-082 amended) with the lag-0 Hilbert bug found; seat 3 landed 0b0e896 / 3ca680e; my review: no defects.
+
+Evidence (command → output):
+- `pytest -q tests/test_geometry*.py tests/test_solver*.py tests/test_devices*.py tests/test_cli*.py` → 71 passed in 4.52s (113a9f8),
+  87 passed in 4.73s (4e463aa), 88 passed in 3.67s (b5d5c37), 102 passed (3e96229), 103 passed in 7.15s (472bfcb),
+  105 passed in 10.15s (89cc68e), 105 passed in 29.28s (a4782d2), 108 passed in 43.73s (c64a4db, on main 3d6ff42 + change)
+- Q-017 (BUILD criterion): tests/test_geometry_boxes.py: faces on voxel centres vs nudged ±1e-12 m → max|Δrho|/1000 <= 1e-9 per
+  axis and for the phone body + plateau + plate (plate faces on and off lattice points); phone and port voxels identical across
+  plate steps 80.0..81.8 and in the ref (D-075). Included in the 87-passed run above.
+- `ringsim export-tx --device iphone17pro --out <tmp>` → phone_tx.wav 48000 float32 (600,) peak 1.0 sha256 216756b8f43e43e3…;
+  sweep_16k_24k_2s.wav 48000 float32 (96000,) peak 1.0 sha256 ca688080ed1bec67…; byte-identical to proc's writers (tested; seat 3
+  confirmed the app's committed copies match)
+- `py -3.13 tools/kaggle_run.py doctor` → first "FAIL kaggle auth works" (user then ran `kaggle auth login`), later all ok
+- Q-020 runs: `py -3.13 tools/kaggle_run.py run jobs/p2_q020_<00..09|rigid>.yaml` (tree a4782d2) → 11 × EXIT=0, rc 0, BUILD_ID
+  318bc88a27f6 = got_build_id, Tesla T4; kernel wall_s 67.7 (00), 63.2 (09), 88.8 (rigid); ref_ir call wall_s 2.03-2.06 s.
+  Grids (64,140,61) 0.55 M cells; rigid (169,140,169) 4.00 M; n_t 1268, k 12
+- `python -m ringsim.validation.subcell <10 step shards> --rigid <rigid shard>` (main 7949a1e) → rc 0; **pass False**:
+  slope -0.002557 s/m vs 2/c 0.005831 (rel err 1.438), monotonic False, max |offset| 0.626 bin; delay_us by d_mm:
+  80.0 462.326 · 80.2 461.322 · 80.4 460.442 · 80.6 459.627 · 80.8 458.875 · 81.0 458.199 · 81.2 457.633 · 81.4 457.250 ·
+  81.6 457.265 · 81.8 458.619; offset_mm +2.235 … -0.199; sys_lag 0.1911 us every step. D-036: ratio_100mm 0.10150,
+  ratio_rigid 0.10364, 100mm_vs_rigid 0.9793, rigid_offset_mm +2.516, image_source 0.03708, rigid_vs_image 2.795.
+  Double bounce agrees (envelope peak 934.0 → 921.9 → 895.8 us at steps 0/5/9; a rigid plate gives +2.3 us/step).
+  Rebuilt media: the plate moves -0.2 mm/step as specified; near-face cell (y = -154 mm) smoothed rho 107.5 / 54.4 / 11.8.
+
+Reading (hypothesis, not tested): with rho linear in frac (D-067), a cell at frac 0.1 is ~84× air and already reflects
+strongly, so the effective surface does not slide with the face. That is the Q-020 caveat on "linear in rho". The image-source
+ratio is not trusted: the nearest speaker voxel is 1 cell (2 mm) from the mic voxel, where the grid cannot follow 1/r, so the
+ideal direct path (and probably the constant part of the offset) is biased. Slope and monotonicity do not depend on it.
+
+Decisions used: D-067, D-071, D-072, D-075, D-076, D-077, D-078, D-081, D-082 (+ amendment), D-083 rule, D-086.
+Deviations from spec: none. Every new shape was posted and ruled first; each spec change went into GEOMETRY.md in the same commit.
+
+Open in my lane:
+- Q-020 FAILS with D-067's linear map: needs a lead/user decision on the fraction → rho map (log rho or a smooth step), then
+  the 11 runs again (same jobs). Not retuned.
+- Q-027: p2_plate_* jobs raise until the user measures plate thickness and the clamp box; then Protocol B sims (6 T4 runs).
+- Q-005: real-comparison plate sims wait for Protocol A (ports may change).
+- Q-025 unchanged (`--frames` refused).
+- Kaggle lock released; no run in progress. Shards kept at `<seat-2 scratchpad>/wt/data/kaggle/p2_q020_*/out/out/`.
+
+next: Q-020 re-run after the fraction → rho ruling; Protocol B sims once Q-027 is measured.
+
 ## Seat 3 PROC
 
 Shas on main (all through `scripts/private-commit.sh`):
