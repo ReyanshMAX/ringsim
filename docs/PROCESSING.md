@@ -104,13 +104,25 @@ def rx_stream(irs: np.ndarray, snap_t: np.ndarray, pulse: np.ndarray, fs_sim: in
 
 # src/ringsim/proc/profile.py
 def align_direct_path(stream: np.ndarray, tx: np.ndarray, band: tuple[float, float],
-                      fs: int, search_frames: int = 2) -> int
-    # bandpass (same filter as cfmcw_profiles, see below), xcorr first
-    # search_frames*len(tx) samples with tx, env = |hilbert(xcorr)|,
+                      fs: int, search_window_s: float = 0.25) -> int
+    # ABSOLUTE index into `stream` of the first chirp's direct path (D-019, D-086), never offset mod frame_len.
+    # The first chirp may start up to search_window_s (0.25 s = 20 frames at 12.5 ms) after the stream starts:
+    # the player starts a variable time after the tap and iOS output latency adds to it.
+    # bandpass (same filter as cfmcw_profiles, see below) the first W + 2*len(tx) samples, W = round(search_window_s*fs),
+    # xcorr with tx in mode "valid" (every lag 0..W+len(tx) is a FULL overlap with tx; the extra period lets a chirp
+    # just past the window show its true peak, which outranks the sidelobe ramp before it), env = |hilbert(xcorr)|
+    # (zero-padded: the FFT-based transform is circular and a period peak at the last lag leaks into lag 0),
     # return index of the EARLIEST local max of env >= 0.5 * max env  (direct path, D-019)
+    # A stream shorter than W + 2*len(tx) is used as far as it goes.
+    # Raises ValueError, never misaligns: stream shorter than tx; max(env) / median(env) < 8 (no chirp found;
+    # measured: noise-only streams 3.3-4.2, a chirp at 0 dB per-sample SNR 14-15); the earliest qualifying peak lies past
+    # lag W (the direct path is beyond the window). The window bounds the direct-path index (chirp start + the
+    # band-pass delay, 13 samples), not the chirp start.
     # Envelope, not |xcorr|: local maxima of |xcorr| ripple at the carrier, and the
     # earliest one >= 0.5 max sits ~5 samples early on the main lobe's leading edge
     # (user decision 2026-10-14). band, fs added because the bandpass needs them.
+    # The old search_frames=2 window (first 1200 samples, "valid") put partial overlaps in play: a first
+    # chirp starting after ~600 samples was misaligned (seat 2, 2026-11-11).
 def frame_stream(stream: np.ndarray, offset: int, frame_len: int) -> np.ndarray
     # [T, frame_len], T = floor((len(stream)-offset)/frame_len); drop the tail
 def cfmcw_profiles(frames: np.ndarray, tx: np.ndarray, band: tuple[float, float],
@@ -241,6 +253,10 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
   100 zeros on each side: a chirp that starts and ends at the array ends puts the documented
   resampling edge error into the spectrum (in-band ratio 0.91-1.04 measured 2026-11-11; padded:
   0.997-1.000).
+- `align_direct_path` (D-086), tests/test_proc_align.py: a looped tx with the first chirp starting at 0, 200, 500, 587,
+  600, 650, 777, 1000, 1500, 2400, 6000 samples returns start + the band-pass delay (13 samples) for every start; a start
+  past the window, a noise-only stream and a stream shorter than tx raise ValueError; a short periodic stream and a
+  stream whose window is cut short by the stream end do not raise.
 - Linearity: `rx_from_ir(a*ir1 + b*ir2) == a*rx1 + b*rx2` to 1e-5 relative; same for `rx_stream`
   over the IR stack.
 - `rx_stream` with S = 1 equals `rx_from_ir` of that IR against the tiled tx stream (steady state)
@@ -295,6 +311,10 @@ must say "correlation-based; Ring-a-Pose parity unverified (Q-002)".
      (and `cfmcw_profiles` for the raw comparison). Real data takes skip frame 0, as `free_air_reference` does: frame 0
      has no echo tail from a previous period. In the synthetic check frame 0 keeps the plate peak bin but differs from
      the steady-state profile by 0.44 relative L2.
-  5. `align_direct_path` takes the earliest envelope peak >= 0.5 of the maximum. Synthetic check: stable (constant
-     offset minus start sample) while the target echo is up to 0.6x the direct path, 1 sample later at 1.0-1.5x, and it
-     locks onto the echo at 3x. A target echo stronger than the direct path is not expected from a phone at >= 8 cm.
+  5. `align_direct_path` returns the absolute index of the first chirp's direct path for a first chirp starting up to
+     `search_window_s` (0.25 s) into the stream, and raises if there is none (D-086). Takes begin with silence (player
+     start delay + output latency + input latency, tens of ms), so frame 0 of `frame_stream(stream, offset, ...)` is the
+     first, transient chirp frame, which is the one the frame-0 skip drops. It takes the earliest envelope peak >= 0.5
+     of the maximum. Synthetic check: stable (constant offset minus start sample) while the target echo is up to 0.6x
+     the direct path, 1 sample later at 1.0-1.5x, and it locks onto the echo at 3x. A target echo stronger than the
+     direct path is not expected from a phone at >= 8 cm.

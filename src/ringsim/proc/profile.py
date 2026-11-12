@@ -17,6 +17,7 @@ BUTTER_ORDER = 5
 REF_GATE_M = 0.70          # free_air_reference gate: excess path < 0.70 m
 REF_TUKEY_ALPHA = 0.5
 REF_DECONV_EPS = 1e-3
+ALIGN_MIN_PEAK_TO_MEDIAN = 8.0   # D-086: noise-only streams give 3.3-4.2, a chirp at 0 dB per-sample SNR 14-15
 
 
 def _bandpass_sos(band: tuple[float, float], fs: int) -> np.ndarray:
@@ -25,21 +26,44 @@ def _bandpass_sos(band: tuple[float, float], fs: int) -> np.ndarray:
 
 
 def align_direct_path(stream: np.ndarray, tx: np.ndarray, band: tuple[float, float],
-                      fs: int, search_frames: int = 2) -> int:
-    """Sample index of the direct path (D-019).
+                      fs: int, search_window_s: float = 0.25) -> int:
+    """ABSOLUTE index into `stream` of the first chirp's direct path (D-019, D-086).
 
-    Band-pass (same filter as cfmcw_profiles, causal), cross-correlate the first
-    search_frames*len(tx) samples with tx, and return the EARLIEST local maximum of the
-    envelope |hilbert(xcorr)| that is >= 0.5 * its max.
+    The direct path may lie up to `search_window_s` into the stream (the player starts a variable time after the
+    tap, and iOS output latency adds to it). Band-pass (same filter as cfmcw_profiles, causal) the first
+    W + 2*len(tx) samples, W = round(search_window_s*fs), and cross-correlate with tx in mode "valid": every lag
+    0 .. W + len(tx) is a FULL overlap with tx, so a partial overlap cannot win. The extra period beyond W lets a
+    chirp that starts just past the window show its true peak, which then outranks the ramp of sidelobes before it.
+    Return the EARLIEST local maximum of the envelope |hilbert(xcorr)| that is >= 0.5 * its max.
+
+    A stream shorter than W + 2*len(tx) is used as far as it goes (a sim stream, a short reference stream).
+
+    Raises ValueError, never misaligns: the stream is shorter than tx; max / median of the envelope is below
+    ALIGN_MIN_PEAK_TO_MEDIAN (no chirp found); or the earliest qualifying peak lies past lag W (the first chirp's
+    direct path is beyond the window). The window bounds the DIRECT-PATH index (chirp start + the band-pass delay,
+    13 samples), not the chirp start.
     """
-    seg = signal.sosfilt(_bandpass_sos(band, fs), np.asarray(stream[: search_frames * len(tx)],
-                                                             dtype=float))
+    tx = np.asarray(tx)
+    if len(stream) < len(tx):
+        raise ValueError(f"stream of {len(stream)} samples is shorter than tx ({len(tx)})")
+    n_win = int(round(search_window_s * fs))
+    seg = signal.sosfilt(_bandpass_sos(band, fs), np.asarray(stream[: n_win + 2 * len(tx)], dtype=float))
     xc = signal.correlate(seg, tx, mode="valid", method="fft")
-    env = np.abs(signal.hilbert(xc))
+    # zero-padded Hilbert transform: it is FFT-based (circular), and a period peak at the last lag leaks into lag 0
+    # (measured: envelope at lag 0 = 56 % of the maximum, which picked lag 0 as "the earliest peak")
+    pad = len(tx)
+    env = np.abs(signal.hilbert(np.concatenate([np.zeros(pad), xc, np.zeros(pad)])))[pad:-pad]
+    if env.max() < ALIGN_MIN_PEAK_TO_MEDIAN * np.median(env):
+        raise ValueError(f"no chirp found in the first {search_window_s} s: envelope max / median = "
+                         f"{env.max() / max(np.median(env), 1e-300):.1f} < {ALIGN_MIN_PEAK_TO_MEDIAN}")
     padded = np.concatenate([[-np.inf], env, [-np.inf]])
     pk, _ = signal.find_peaks(padded)
     pk = pk - 1
-    return int(pk[env[pk] >= 0.5 * env.max()][0])
+    first = int(pk[env[pk] >= 0.5 * env.max()][0])
+    if first > n_win:
+        raise ValueError(f"the first chirp's direct path (sample {first}) lies after the {search_window_s} s search "
+                         f"window ({n_win} samples)")
+    return first
 
 
 def frame_stream(stream: np.ndarray, offset: int, frame_len: int) -> np.ndarray:
