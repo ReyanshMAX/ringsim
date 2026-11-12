@@ -31,9 +31,9 @@ def _capture(tmp_path, take, start, n_frames=40, echo=None, seed=0):
     return wav
 
 
-def test_real_direct_path_at_bin_0(tmp_path, capsys):
-    # start <= 500: align_direct_path misaligns starts beyond ~1 frame (seat 2 finding to seat 3, 2026-11-11)
-    wav = _capture(tmp_path, "free_air_1", start=477)
+@pytest.mark.parametrize("start", [477, 777, 6000])         # first chirp up to 0.25 s late (D-086)
+def test_real_direct_path_at_bin_0(tmp_path, capsys, start):
+    wav = _capture(tmp_path, "free_air_1", start=start)
     png = tmp_path / "real.png"
     with pytest.warns(UserWarning):
         assert main(["real", "--capture", str(wav), "--device", "iphone17pro", "--out", str(png)]) == 0
@@ -56,4 +56,11 @@ def test_real_target_echo_shows_beyond_bin_0(tmp_path, capsys):
 def test_real_refuses_too_short(tmp_path):
     wav = _capture(tmp_path, "short", start=10, n_frames=2)
     with pytest.warns(UserWarning), pytest.raises(ValueError, match="need >= 2"):
+        main(["real", "--capture", str(wav), "--device", "iphone17pro", "--out", str(tmp_path / "s.png")])
+
+
+def test_real_alignment_failure_names_the_take(tmp_path):
+    """No chirp in the first 0.25 s: align_direct_path raises (D-086); the CLI error names the take."""
+    wav = _capture(tmp_path, "late_t1", start=13000)
+    with pytest.warns(UserWarning), pytest.raises(ValueError, match="late_t1.wav: direct-path alignment failed"):
         main(["real", "--capture", str(wav), "--device", "iphone17pro", "--out", str(tmp_path / "s.png")])

@@ -187,7 +187,10 @@ def cmd_real(args: argparse.Namespace) -> int:
     stream, meta = load_capture(args.capture)
     tx = tx_frame(dev.chirp, REAL_FS_HZ)
     band = (min(dev.chirp.f0_hz, dev.chirp.f1_hz), max(dev.chirp.f0_hz, dev.chirp.f1_hz))
-    offset = align_direct_path(stream, tx, band, REAL_FS_HZ)
+    try:
+        offset = align_direct_path(stream, tx, band, REAL_FS_HZ)
+    except ValueError as err:                                   # name the take (D-083 rule, lead 2026-11-12)
+        raise ValueError(f"{os.path.basename(args.capture)}: direct-path alignment failed: {err}") from err
     frames = frame_stream(stream, offset, len(tx))[1:]          # frame 0: no echo tail from a previous period
     if len(frames) < 2:
         raise ValueError(f"{os.path.basename(args.capture)}: {len(frames)} frames after alignment and dropping "
