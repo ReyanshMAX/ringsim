@@ -39,6 +39,63 @@ scene, Q-020 method, capture-app details). New: Q-027 (rig measurements: plate t
 
 ## Seat 3 PROC
 
+Shas on main (all through `scripts/private-commit.sh`):
+- d17a703 `tests/test_proc_real.py`: synthetic real-capture call path (float32 48 kHz WAV, own random start offset per recording)
+- 28d66a0 PROCESSING.md Notes: real-capture call sequence (per-recording align, REF frames, frame-0 skip, alignment limits)
+- c4dc235 `magnitude()` docs: also feeds the Protocol B peak-bin metric, never the model
+- 3d6ff42 D-086 `align_direct_path(stream, tx, band, fs, search_window_s=0.25)`; PROCESSING.md signature, Notes and required tests; `tests/test_proc_align.py`
+- 0b0e896 `validation/subcell.py` + `tests/test_validation_subcell.py` (Q-020 analysis, D-072 / D-076 / D-082; seat 2's draft, fixed)
+- 3ca680e `subcell.envelope_lag` zero-pads before the Hilbert transform (as align does)
+- this commit: HANDOFF section + PASTE-SEAT3-2026-11-11.txt
+
+Evidence (`pytest -q <file>`, worktree at main 60b547a):
+- tests/test_proc_chirp.py: 8 passed in 1.34s
+- tests/test_proc_ir.py: 11 passed in 2.10s
+- tests/test_proc_isolation.py: 2 passed in 3.56s
+- tests/test_proc_motion.py: 3 passed in 2.48s
+- tests/test_proc_profile.py: 3 passed in 1.23s
+- tests/test_proc_reference.py: 3 passed in 2.17s
+- tests/test_proc_real.py: 8 passed in 2.07s
+- tests/test_proc_align.py: 19 passed in 1.66s
+- tests/test_validation_subcell.py: 12 passed in 13.67s
+- tests/test_temperature_scaling.py (slow, seat 2 on Kaggle): unchanged since round 1 (BUILD_ID fb85a88049c9)
+- Full suite on my worktree before the plate-test fix: 229 passed, 2 deselected, 1 failed (`test_truncated_take_raises_naming_it`,
+  seat 4's file, caused by D-086 making `align_direct_path` raise; seat 4 fixed it in 60b547a). Seat 4 runs the last full suite.
+
+Measured (synthetic, `tests/test_proc_real.py`, `-s`):
+- Protocol B peak bins, background-subtracted, referenced: 80 / 110 / 140 / 170 / 200 mm -> 22 / 31 / 39 / 48 / 56 (ideal 22.4 /
+  30.8 / 39.2 / 47.6 / 56.0); slope 283.3 bins/m vs 2fs/c 279.9; same with frame 0 kept or dropped
+- REF from two free-air takes with offsets 140 and 58: rel L2 4.40e-04
+- a 5-sample offset error between data and REF moves the peak from bin 31 to bin 6
+- frame 0 of a take that starts with silence: peak bin right, rel L2 0.437 to the steady-state profile (D-070)
+- alignment vs a plate echo of 0.3-3 x the direct path: stable up to 0.6x, +1 sample at 1.0-1.5x, locks onto the echo at 3x (Q-028)
+- `export_tx_wav` / `export_sweep_wav` output: float32 mono 48 kHz, 600 and 96000 samples, peak 1.0; the WAVs committed in
+  capture-app/Resources/tx are byte-identical (sha256 216756b8f43e43e3..., ca688080ed1bec67...)
+- sweep spectrum 16-23.9 kHz flat within 2.2 dB, 23.9-24 kHz -107 dB: no defect at f1 = Nyquist (lead's Q1 ruling)
+- D-086: first chirp at 0, 200, 500, 587, 600, 650, 777, 1000, 1500, 2400, 6000, 11980 samples -> offset = start + 13 (the
+  causal band-pass delay); 12000, 12100, 13800, 24000 and noise-only streams raise ValueError. The old code returned -587, -32,
+  -141, -436, -568, -1457, -2399, -4955, -23992 relative to start for 587..24000
+- `align_direct_path` contrast threshold ALIGN_MIN_PEAK_TO_MEDIAN = 8: noise-only streams 3.3-4.2 (50 draws), a chirp at 0 dB
+  per-sample SNR 14-15, at -20 dB 3.5 (refused)
+- subcell `envelope_lag`: |lag - tau| <= 1e-4 sim samples over sub-sample phases at delays 20 / 200 / 466 us (fs_sim 571.7 kHz); seat
+  2's draft read 5 us as 15.6 us because it cut the cross-correlation at lag 0 before the Hilbert transform
+
+Reviews posted (no defects unless noted): c95284d, bb3c857 (seat 4); b5d5c37 (seat 2); 04a67f9 (seat 4: free_air_<n> must sort
+on the integer, D-079 noise floor and drift inputs, D-083 length check); 6e847dc (WAVs byte-identical to proc's writers); c64a4db.
+
+Spec changes (PROCESSING.md, each in the same commit as its code): D-086 signature, Notes and required tests; `magnitude` wording;
+the real-capture call sequence under Notes.
+Decisions used: D-042, D-046, D-064, D-065, D-068, D-070, D-079, D-082, D-083, D-086.
+
+Open:
+- Q-028: watch for peak bin 3 at 80 / 110 mm in the first real `validate plate` report (direct-path residue, not a proc bug).
+- Q-026 (reader offsets, Phase 3) and Q-002 (Ring-a-Pose details) need a USER ANSWER.
+- D-086's 250 ms margin is unchecked against a real take: the first device take's leading silence (WAV) and `input_latency_s` /
+  `output_latency_s` (JSON) settle it.
+- subcell.py has not run on the 11 T4 shards (seat 2); a failing slope or offset is a finding about D-036 / voxelization, not
+  about the estimator (the fake-k-Wave tests recover +/-0.9 mm shifts to 0.02 mm).
+Next: Phase 2 device criteria as the user's captures arrive (Protocol A, Protocol B, CAPTURE_APP acceptance); subcell numbers.
+
 ## Seat 4 DATASET AND VALIDATION
 
 ## Seat 5 SPECIALIST (capture app)
