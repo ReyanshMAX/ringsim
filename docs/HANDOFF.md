@@ -143,19 +143,25 @@ Evidence (command → output):
   1.0, sha256 216756b8f43e43e3…; sweep_16k_24k_2s.wav 48000 float32 (96000,) peak 1.0, sha256 ca688080ed1bec67…;
   `git show main:<wav> | sha256sum` gives the same (seat 3 checked them byte-identical to proc's writers)
 - metadata keys = seat 4's `META_KEYS` in validation/real.py (18, cbe4a7a)
-- CI: NOT RUN. No Swift compiler here; the app has never compiled. `git ls-remote origin refs/heads/main` →
-  a071e9e at round end: the user had not pushed, so `gh run list --workflow ios.yml` → 404 (workflow not on the
-  default branch yet). Reviews without a compiler: seat 4 (findings fixed in 1c15710, 446d7fb).
+- CI (after the user's push, origin/main 7949a1e): `gh run view 43127004064` → ✓ build in 22s, artifact
+  RingCapture-unsigned-ipa (533874 bytes). `gh run view 43127004064 --log` → "** ARCHIVE SUCCEEDED **" (Xcode 26.6),
+  SwiftCompile for all 5 sources, 0 Swift warnings or errors; only annotation: Node 20 deprecation of
+  actions/checkout@v4 / upload-artifact@v4. Before that, the only review was seat 4's (no compiler here); its findings
+  were fixed in 1c15710 and 446d7fb.
+- IPA (`gh run download 43127004064 -n RingCapture-unsigned-ipa`, unzipped): bundle root = RingCapture, Info.plist,
+  PkgInfo, phone_tx.wav, sweep_16k_24k_2s.wav (XcodeGen flat copy confirmed), WAV sha256 = main's; Info.plist
+  MinimumOSVersion 17.0, UILaunchScreen {}, portrait only. Cosmetic: CFBundleShortVersionString "1.0", not
+  MARKETING_VERSION "0.1.0" (XcodeGen regenerates Info.plist with its own default for that key).
 
 Decisions used: D-073, D-074, D-080 (take names; duplicate `_2` stems raise), D-084, D-085, D-086 (leading silence
 handled in proc, app unchanged), D-087 (Protocol A labels), D-088.
 
 Open in my lane:
-- CAPTURE_APP acceptance (BUILD.md Phase 2 box 1): CI green → [device] steps (sent to the lead, held until green) →
+- CAPTURE_APP acceptance (BUILD.md Phase 2 box 1): CI green (done, run 43127004064) → [device] steps (with the lead) →
   user's accept_10s take → `load_capture` length 480000 + `ringsim real` direct_peak_bin 0 → leading-silence length
   vs the D-086 0.25 s window → D-085 measurement-off branch (only after the acceptance take).
-- Not verified anywhere yet: XcodeGen's flat copy of Resources/tx into the bundle root (the app lists bundle-root
-  WAVs), AVAudioEngine start with no player (D-088 take), Swift 5 compile of the notification / tap closures.
+- Not verified until the device: AVAudioEngine start with no player (D-088 take), every runtime path (permission,
+  route checks, truncation, abort). Cosmetic version string above, if wanted.
 
 next: CAPTURE_APP acceptance, starting with the CI result after the user's push.
 
