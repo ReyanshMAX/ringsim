@@ -82,7 +82,10 @@ def _classify(session: dict) -> tuple[dict[int, list[str]], list[str], list[str]
 def _frames(path: str, tx: np.ndarray, band: tuple[float, float]) -> tuple[np.ndarray, np.ndarray]:
     """(frames [T, len(tx)] on this recording's own offset, the stream)."""
     stream, _ = load_capture(path)
-    off = align_direct_path(stream, tx, band, SAMPLE_RATE)
+    try:
+        off = align_direct_path(stream, tx, band, SAMPLE_RATE)
+    except ValueError as err:
+        raise ValueError(f"{os.path.basename(path)}: {err}") from err
     frames = frame_stream(stream, off, len(tx))
     if len(frames) < 3:                                # frame 0 is dropped, and a profile set needs >= 2 frames
         raise ValueError(f"{os.path.basename(path)}: only {len(frames)} frames after alignment, need >= 3")

@@ -78,11 +78,11 @@ def rig(tmp_path, synth_ir):
     rng = np.random.default_rng(0)
     for d in DISTS:
         for k in (1, 2):
-            _wav(ses / f"plate_{d}mm_t{k}", synth_ir, d, int(rng.integers(20, 500)), dev)
+            _wav(ses / f"plate_{d}mm_t{k}", synth_ir, d, int(rng.integers(20, 3000)), dev)
     for k in (1, 2):
-        _wav(ses / f"background_t{k}", synth_ir, None, int(rng.integers(20, 500)), dev)
+        _wav(ses / f"background_t{k}", synth_ir, None, int(rng.integers(20, 3000)), dev)
     for n in (1, 2, 10):
-        _wav(ses / f"free_air_{n}", synth_ir, None, int(rng.integers(20, 500)), dev)
+        _wav(ses / f"free_air_{n}", synth_ir, None, int(rng.integers(20, 3000)), dev)
     return str(sim), str(ses)
 
 
@@ -132,7 +132,7 @@ def test_truncated_take_raises_naming_it(rig):
     sim, ses = rig
     p = os.path.join(ses, "plate_80mm_t1.wav")
     x = wavfile.read(p)[1]
-    wavfile.write(p, 48000, x[:900])                   # 1 frame
+    wavfile.write(p, 48000, x[:900])                   # shorter than a search segment
     with pytest.raises(ValueError, match="plate_80mm_t1"):
         plate_report(sim, ses)
 
