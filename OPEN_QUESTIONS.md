@@ -136,6 +136,17 @@ cells. D-036's smoothing was calibrated on binary occupancy.
   the effective reflecting surface may sit ½–1 cell out. The Phase 2 check measures that offset.
 - **Partly answered 2026-11-11:** boxes use analytic fractions, linear ρ, σ = 0.5 on top (D-067); the check's method
   is D-072. Still open: the method for hand meshes (Phase 3), and whether the Phase 2 T4 check passes.
+- **T4 check 2026-11-12: FAIL with the linear map** (BUILD_ID 318bc88a27f6, STATUS Measurements): the echo delay falls
+  ~0.4–1.0 µs per 0.2 mm step for 8 steps instead of rising 1.166 µs, then jumps; the double bounce agrees, so it is
+  the medium, not the estimator. Reading (seats 2, 3; not yet tested): with ρ linear in frac a cell at 10 % fill is
+  ~84× air (|R| ≈ 0.98), so the surface reflects at the cell boundary and moves in cell steps. Next: choose the
+  fraction → ρ map (log ρ, a smooth step, or other; a 1D screening model is the first filter), then re-run the same jobs.
+- **1D screening 2026-11-12 (seat 3, scratch model, not k-Wave; plane waves, no 3D edges or dispersion):** with σ 0.5 on
+  ρ, linear ρ, log ρ, frac², frac³ and a √Z blend all fail; log ρ with the smoothing applied to log ρ passes at the jobs'
+  lattice phase (slope −9 %, monotonic, offset 0.21 bin) but meets the 10 % slope gate at only 4 of 8 lattice phases
+  (slope ±0.2, offsets ≤ 0.22 bin and monotonic at all 8). So the leading candidate is "log ρ, smoothed in log ρ", and the
+  1.8 mm span (about one cell) limits the slope gate; more steps or a second lattice phase are the lever. Smoothing
+  log ρ changes D-036's mechanism, so D-036 needs its own re-check with it.
 - **Depends on it:** `geometry.voxelize.build_medium`, D-036, convergence study
 
 ## Q-021: Device-residual randomization after referencing (D-042)

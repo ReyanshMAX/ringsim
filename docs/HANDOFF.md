@@ -35,6 +35,26 @@ scene, Q-020 method, capture-app details). New: Q-027 (rig measurements: plate t
 
 ## Seat 1 LEAD
 
+Round result: Phase 2 code complete on main; 1 of 12 boxes checked (Q-017). Q-020 FAILED on T4 with the D-067 map. The
+capture app built green (ios run 43127004064). Everything else waits for the user's phone or the Q-020 map.
+
+- Shas: 3103453 (round header, D-067..D-073, Q-027) · bc3ccc4 (D-074..D-078, BUILD + ARCHITECTURE validation
+  signatures) · 813b1bb (D-079) · 04eeca4 (ARCHITECTURE Scene.boxes etc., D-080) · 15c8238 (D-081, D-082) · 20fc4e8
+  (D-083..D-085, Q-028, subcell.py to seat 3) · a163d4c (D-086, D-087) · 01001ea (D-088, D-089) · this commit (STATUS,
+  Q-017 box, Q-020 finding, PASTE-SEAT1).
+- Decided with the user: D-067..D-076. The user then delegated (2026-11-11 "dont ask me questions for a while"):
+  D-077..D-089 are lead decisions, tagged so in DECISIONS.md. Worth a look by the user: D-086 (0.25 s alignment
+  window), D-088 (null tx fields), D-080 / D-087 (take names the user types in the app).
+- Push: done by the lead with the user's yes (a071e9e..7949a1e); later commits are not pushed.
+- Q-020 next step: seat 3's 1D screening (scratch, not k-Wave; summary in OPEN_QUESTIONS Q-020) points to "log ρ,
+  smoothed in log ρ", and notes the 1.8 mm span limits the 10 % slope gate. That is a candidate for the round-3 ruling,
+  not a decision yet.
+- Open: Q-020 map (round 3 first job), Q-027 (user measures), Q-028 (watch the first real plate report), Q-005
+  (Protocol A), Q-025 / Q-026 (later phases).
+- The user's phone steps (seat 5's text, relayed at round end): install from run 43127004064, Developer Mode, trust,
+  mic allow; Protocol A step 0; the 10 s acceptance take `accept_10s`; Protocol A labels per D-087; redo = delete first.
+- Vault: log entry for 2026-11-12, overview status, `python scripts/obsidian_sync.py`.
+
 ## Seat 2 SIM
 
 Shas on main (all through `scripts/private-commit.sh`):

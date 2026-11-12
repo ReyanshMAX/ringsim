@@ -2,8 +2,9 @@
 
 **Last updated:** 2026-11-11
 **Current phase:** 2 of 5 — Phone + flat plate (Phase 1 done 2026-11-11)
-**Next action:** start Phase 2 (BUILD.md): capture app per docs/CAPTURE_APP.md (seat 5) and `ringsim export-tx`;
-then Protocol A step 0 (which tx channel drives only the bottom speaker, D-032).
+**Next action:** round 3 of Phase 2. (1) Pick a new fraction → ρ map for Q-020 (the D-067 linear map failed on T4), then
+re-run the 11 `jobs/p2_q020_*` jobs. (2) The user's phone work: install the IPA from ios run 43127004064, Protocol A
+step 0 (D-032 tx channel), the 10 s acceptance take, Protocol A, Q-027 measurements, then Protocol B.
 
 ---
 
@@ -58,7 +59,23 @@ then Protocol A step 0 (which tx channel drives only the bottom speaker, D-032).
 
 ## In progress
 
-- **Phase 2 — Phone + flat plate** (not started)
+- **Phase 2 — Phone + flat plate** (round 2 of the multi-seat setup, 2026-11-11: lead + sim, proc, dataset/validation,
+  capture-app seats). 1 of 12 boxes checked. Code for every Phase 2 criterion is on main; the rest waits for the
+  phone or for Q-020.
+  - [x] Q-017 (box faces on/off grid, D-067): `tests/test_geometry_boxes.py` in `pytest -q tests/test_geometry*.py
+    tests/test_solver*.py tests/test_devices*.py tests/test_cli*.py` → 87 passed (4e463aa, seat 2); full
+    `pytest -q` → 240 passed, 2 deselected, 0 skipped at 60b547a (seat 4)
+  - CI half of the CAPTURE_APP box: ios run 43127004064 on 7949a1e → ARCHIVE SUCCEEDED, 5 Swift files, 0 warnings,
+    artifact RingCapture-unsigned-ipa 533874 bytes; IPA holds phone_tx.wav / sweep_16k_24k_2s.wav with main's sha256
+    (`gh run view 43127004064 --log`, seat 5). Box stays open until the [device] items pass.
+  - **Q-020 FAILED** with the D-067 linear map (see Measurements): delay not monotonic, slope wrong sign. Recorded
+    against Q-020; a new fraction → ρ map is the next decision. A 1D screening model (seat 3, scratch) compares maps.
+  - Built, waiting for the user's captures: `ringsim real`, `ringsim validate plate`, validation/plate.py,
+    protocol_a.py, sweep.py (D-068, D-089), the capture app with a no-playback mode (D-088).
+  - Decisions this round: D-067..D-073 (user), D-074..D-076 (user), D-077..D-089 (lead, under the user's delegation
+    2026-11-11). New questions: Q-027 (rig measurements), Q-028 (alignment shift at strong echoes). Q-017 removed.
+  - Fixed while building: `align_direct_path` searched only 2 frames, so a real take whose first chirp starts > 12.5 ms
+    in misaligned (direct path at bin 5–6); now 0.25 s, absolute offset, raises otherwise (D-086, 3d6ff42).
 
 ## Next up
 
@@ -69,7 +86,9 @@ then Protocol A step 0 (which tx channel drives only the bottom speaker, D-032).
 
 ## Blocked
 
-None.
+- Phone work (the user): CAPTURE_APP [device] items, Protocol A (Q-005, D-032, D-023), Protocol B.
+- Q-027: plate thickness and `clamp_box_mm`; `jobs/p2_plate_*.yaml` raise until measured.
+- Q-020: fraction → ρ map to choose before the T4 re-run.
 
 ## Measurements
 
@@ -87,7 +106,10 @@ None.
 | wall_s/frame CPU, Kaggle (p1_free, same grid) | 7.69 s per snapshot; + 7.67 s for `ref_ir` | `python tools/kaggle_run.py run jobs/p1_free.yaml --cmd "ringsim sim --job {job} --out-dir {out}"` 2026-11-11, BUILD_ID c12f529749d8 |
 | p1_free CPU vs T4 IR | 1.331e-05 relative L2 | `validation.freefield.compare_ir(cpu, t4, "free")` 2026-11-11 (seats 2 and 4) |
 | Temperature scaling (D-037), 64³ fixture, 343 → 337 m/s, Kaggle CPU | scaled vs direct 0.0455 % over 17–27 kHz (unscaled 4.78 %); \|g\| 1.01786 vs 1/α 1.01780 | `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"` 2026-11-11, BUILD_ID fb85a88049c9 |
-| static noise floor n | — | Phase 2 |
+| Q-020 sub-cell check, D-067 linear ρ (T4, dx 2 mm, plate 100×100×10 mm, d 80.0..81.8 mm in 0.2 mm steps) | FAIL: echo delay 462.326 → 457.250 µs over steps 0..7, then 457.265, 458.619 (should rise 1.166 µs/step); slope −0.002557 s/m vs 2/c 0.005831 (rel err 1.438); not monotonic; max \|offset\| 0.626 bin; sys_lag 0.1911 µs every step | `py -3.13 tools/kaggle_run.py run jobs/p2_q020_<00..09\|rigid>.yaml` (11 × exit 0, BUILD_ID 318bc88a27f6), then `python -m ringsim.validation.subcell <10 shards> --rigid <h5>` 2026-11-12 (seat 2) |
+| D-036 re-measure (same runs) | echo/direct 0.10150 (100 mm plate) vs 0.10364 (300 mm rigid reference), ratio 0.9793 | same; the image-source ratio (0.03708) is not trusted: the nearest speaker voxel is 1 cell from the mic voxel |
+| wall_s Q-020 jobs, T4 | kernel 67.7 s (step 00), 63.2 s (step 09), 88.8 s (rigid, 4.00 M cells); `ref_ir` call 2.03–2.06 s | same runs |
+| static noise floor n | — | Phase 2 (needs Protocol B no-plate takes) |
 | chosen dx | — | Phase 3 |
 | frames / T4 GPU-hour (ring) | — | Phase 5 |
 
@@ -100,7 +122,7 @@ T4 64³ × 1200 steps 2.7 s; T4 124³ × 1300 steps 13.0 s.
 
 ## Deviations from spec
 
-None in the rebuild (Phase 1 closed with none). (v1's deviations are already written into PROCESSING.md, DATASET.md, DEVICES.md, BUILD.md.)
+None in the rebuild (Phase 1 closed with none; Phase 2 round 2: none, every spec gap became a D-ID with its doc edit). (v1's deviations are already written into PROCESSING.md, DATASET.md, DEVICES.md, BUILD.md.)
 
 ---
 

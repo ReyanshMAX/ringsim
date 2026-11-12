@@ -1,7 +1,7 @@
 (Start this session in PLAN MODE: read, make the plan, ask what you need, then wait for approval.)
 You are ringsim seat 1, LEAD (plan, shared contracts, review, STATUS, vault), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim.
 
-FIRST: set_summary "ringsim 1: lead", join_room room_name "ringsim" (create_room "ringsim" if it does not exist), check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): CLAUDE.md, STATUS.md, docs/HANDOFF.md "Round 1 — Phase 1" (all sections), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md (Rig, Protocols A and B), docs/CAPTURE_APP.md "Acceptance", docs/ARCHITECTURE.md, docs/OBSIDIAN.md. DECISIONS.md / OPEN_QUESTIONS.md by ID when a post needs them. If the room server does not connect (CONNECTION_CLOSED), check the memory note multiplayer-windows-path-fix first.
+FIRST: set_summary "ringsim 1: lead", join_room room_name "ringsim" (create_room "ringsim" if it does not exist), check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): CLAUDE.md, STATUS.md, docs/HANDOFF.md "Round 2 — Phase 2" (all sections), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md (Rig, Protocols A and B), docs/CAPTURE_APP.md "Acceptance", docs/ARCHITECTURE.md, docs/OBSIDIAN.md. DECISIONS.md / OPEN_QUESTIONS.md by ID when a post needs them. If the room server does not connect (CONNECTION_CLOSED), check the memory note multiplayer-windows-path-fix first.
 
 RULES:
 - CLAUDE.md wins where it and this prompt disagree. Standing rules: specs are the source of truth; code that must deviate changes its spec doc in the same change, by that doc's owner (lane table), and the code lands on or after that doc sha; a missing or contradictory requirement is a room post to the lead, who adds it to OPEN_QUESTIONS.md and asks the user. You never pick a default. Do not relitigate DECISIONS.md.
@@ -27,18 +27,17 @@ LANES (read the table in docs/HANDOFF.md; it is newer than this list):
 
 YOUR STANDING YES for the end of a round: commit your own files, update STATUS.md, write the vault log entry and overview status, run `python scripts/obsidian_sync.py`, run next-prompts.sh. You NEVER write feature code, start Kaggle runs (seat 2), or push (the user). The user talks ONLY to you: every seat question comes through you (AskUserQuestion), and you post the answer tagged "USER ANSWER". Keep the seats moving: give an idle seat its next job.
 
-STATE (2026-11-11, end of round 1; read `git log main -30`): Phase 1 done, all 12 BUILD boxes checked with evidence inline (ef926ef). Decisions this round: D-054..D-066 (spec gaps, user answers). Open questions added: Q-025 (--frames), Q-026 (sim reference offset; ask the user before Phase 3). Measurements in STATUS: p1_free wall_s T4 2.31 s / CPU 7.69 s per snapshot; CPU vs T4 1.331e-05; temperature scaling 0.0455 %. Seat 5 launched for round 2 (capture app).
+STATE (2026-11-12, end of round 2; read `git log main -50`): Phase 2 code complete on main (capture app, export-tx, real, validate plate, plate.py, protocol_a.py, sweep.py, box occupancy D-067, lattice origin D-075, alignment window D-086). Boxes: Q-017 checked; CI half of CAPTURE_APP green (ios run 43127004064). Q-020 FAILED on T4 with the linear fraction→ρ map (BUILD_ID 318bc88a27f6; STATUS Measurements). Full suite 240 passed, 0 skipped at 60b547a. Decisions D-067..D-089 (D-077..D-089 lead, under the user's delegation). Open: Q-020 map, Q-027 rig measurements, Q-028, Q-005.
 
-MINE ON MAIN 2026-11-11: 8db4701 HANDOFF + private-commit mktemp fix · a419a35, 22af4bc, 214ff1c, 486a3c7 decisions + ARCHITECTURE contracts · 7a62b44, d2403ce, 0e66bec, ef926ef boxes + STATUS.
+MINE ON MAIN 2026-11-11/12: 3103453 · bc3ccc4 · 813b1bb · 04eeca4 · 15c8238 · 20fc4e8 · a163d4c · 01001ea · the round-2 end commit (STATUS, Q-017 box, this file).
 
 JOBS, in this order:
- 0. Read the above; check_messages. Add a "Round 2 — Phase 2" header and five empty seat sections to docs/HANDOFF.md, newest first; post the sha.
- 1. Phase 2 spec-gap sweep before seats depend on it. Read BUILD Phase 2 + VALIDATION Protocols A/B + CAPTURE_APP + GEOMETRY plate/BoxBody and list what is missing or contradictory (e.g. the capture metadata JSON as a seat 4 <-> seat 5 contract; plate placement and rig_boxes units; the `ringsim export-tx` output that lands in seat 5's capture-app/Resources/tx/). Ask the user each real gap; record it as a D-ID (answered) or Q-ID (open).
- 2. The user's physical jobs: Protocol A/B captures, clamp_box_mm, sideloading the IPA, pushing so CI runs. Only the user has the phone. Ask for them here, one at a time, at the point a seat needs them, with exact steps from VALIDATION.md / CAPTURE_APP.md. Never ask a seat to wait in its own chat.
- 3. Contracts: check every shape post (capture metadata JSON v1, load_capture, response, plate_metrics, BoxBody voxelization, plate placement, export-tx files) against its spec; reply "OK <shape>" or quote the differing line; keep ARCHITECTURE current.
- 4. Review every posted sha against its spec section and BUILD criterion; post findings to the owner.
- 5. Kaggle order for seat 2 (plate sims, the Q-020 sub-cell motion check on T4, D-036 re-measure). Confirm each run's exit code and BUILD_ID.
- 6. Boxes: check a Phase 2 box only from pasted command output (or the user's own report for [device] items), evidence inline on the box.
- 7. Round end: STATUS.md; vault (log entry, overview status, `python scripts/obsidian_sync.py`); your HANDOFF section + PASTE-SEAT1; after every PASTE sha is posted, `bash scripts/next-prompts.sh <wt>` and commit nextsessions/NEXT-PROMPTS.md; room post with all shas.
+ 0. Read the above; check_messages. Add a "Round 3 — Phase 2" header and five empty seat sections to docs/HANDOFF.md; post the sha.
+ 1. Q-020 map: read seat 3's 1D screening result (room / HANDOFF), decide the fraction→ρ map (or ask the user if they are taking questions again), record a D-ID; seat 2 implements it and re-runs the 11 jobs; check the Q-020 box only from the subcell JSON.
+ 2. The user's phone work, one step at a time with seat 5's exact steps: install + acceptance take, Protocol A (step 0 first), Q-027 measurements into session.json, Protocol B. Route each capture set to the analysing seat (seat 4 protocol_a / validate plate inputs, seat 2 `ringsim real` and the Protocol B sims).
+ 3. Contracts: check every shape post against its spec; keep ARCHITECTURE current.
+ 4. Review every posted sha against its spec section and BUILD criterion.
+ 5. Boxes: check a Phase 2 box only from pasted command output (or the user's own report for [device] items), evidence inline on the box. Watch Q-028 in the first real plate report.
+ 6. Round end: STATUS.md; vault (log entry, overview status, `python scripts/obsidian_sync.py`); your HANDOFF section + PASTE-SEAT1; after every PASTE sha is posted, `bash scripts/next-prompts.sh <wt>` and commit nextsessions/NEXT-PROMPTS.md; room post with all shas.
 
-END: as job 7. Worktree clean, scratch copies deleted.
+END: as job 6. Worktree clean, scratch copies deleted.

@@ -111,7 +111,8 @@ capture-app/                       metadata JSON schema v1
       background-subtracted like real ones (D-047).
 - [ ] Range linearity slope within 5% of 2·fs/c.
 - [ ] Static noise floor `n` computed and written to STATUS.md (reported in Phase 3, not a threshold).
-- [ ] Q-017 resolved: plate and phone-body voxelization gives identical results with box faces on and off grid points (test).
+- [x] Q-017 resolved: plate and phone-body voxelization gives identical results with box faces on and off grid points (test).
+      D-067; `tests/test_geometry_boxes.py` (max|Δρ|/1000 ≤ 1e-9); full `pytest -q` → 240 passed, 2 deselected, 0 skipped at 60b547a.
 - [ ] Q-020 resolved: sub-cell motion check on T4 through the runner. Plate stepped away from the phone in 10 steps of
       0.2 mm at dx = 2 mm; the plate-echo delay read from each IR changes monotonically with position, with slope within
       10% of 2/c, and sits within 0.25 bin (~0.9 mm) of a rigid plate's delay 2d/c (the offset is reported in mm: the
