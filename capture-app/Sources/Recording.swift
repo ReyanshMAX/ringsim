@@ -9,9 +9,9 @@ struct TakeMetadata: Encodable {
     let take: String
     let startedUTC: String
     let durationS: Double
-    let txFile: String
+    let txFile: String?        // null for "none (no playback)" (D-088)
     let txChannel: TxChannel
-    let txSha256: String
+    let txSha256: String?      // null for "none (no playback)" (D-088)
     let route: Route
     let micSource: MicSource
     let sampleRate: Int
@@ -51,9 +51,10 @@ struct TakeMetadata: Encodable {
         try c.encode(take, forKey: .take)
         try c.encode(startedUTC, forKey: .startedUTC)
         try c.encode(durationS, forKey: .durationS)
-        try c.encode(txFile, forKey: .txFile)
+        // Explicit null for a no-playback take (encodeIfPresent would drop the key).
+        if let v = txFile { try c.encode(v, forKey: .txFile) } else { try c.encodeNil(forKey: .txFile) }
         try c.encode(txChannel, forKey: .txChannel)
-        try c.encode(txSha256, forKey: .txSha256)
+        if let v = txSha256 { try c.encode(v, forKey: .txSha256) } else { try c.encodeNil(forKey: .txSha256) }
         try c.encode(route, forKey: .route)
         try c.encode(micSource, forKey: .micSource)
         try c.encode(sampleRate, forKey: .sampleRate)

@@ -16,6 +16,8 @@ struct ContentView: View {
 struct CaptureView: View {
     /// UserDefaults key for the tx channel found by Protocol A step 0 (D-032).
     static let txChannelKey = "txChannel"
+    /// Picker entry for a take with no playback (noise floor, D-088). Not a file name.
+    static let noPlayback = "none (no playback)"
 
     @StateObject private var rig = AudioRig()
 
@@ -53,7 +55,8 @@ struct CaptureView: View {
                         }
                     }
                     Picker("tx file", selection: $txFile) {
-                        Text("none").tag(String?.none)
+                        Text("not set").tag(String?.none)
+                        Text(CaptureView.noPlayback).tag(String?.some(CaptureView.noPlayback))
                         ForEach(txFiles, id: \.self) { Text($0).tag(String?.some($0)) }
                     }
                 }
@@ -69,7 +72,9 @@ struct CaptureView: View {
                     Stepper("Duration \(durationS) s", value: $durationS, in: 1...60, step: 1)
                     Button(rig.isRecording ? "Recording..." : "Record") {
                         guard let txChannel, let txFile else { return }
-                        rig.record(label: label, txFile: txFile, txChannel: txChannel, route: route,
+                        // "none (no playback)" records without a player (D-088).
+                        let file: String? = (txFile == CaptureView.noPlayback) ? nil : txFile
+                        rig.record(label: label, txFile: file, txChannel: txChannel, route: route,
                                    mic: mic, durationS: durationS)
                     }
                     .disabled(!canRecord)

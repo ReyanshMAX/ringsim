@@ -68,9 +68,9 @@ final class AudioRig: ObservableObject {
         let take: String
         let label: String
         let startedUTC: String
-        let txFile: String
+        let txFile: String?
         let txChannel: TxChannel
-        let txSha256: String
+        let txSha256: String?
         let route: Route
         let mic: MicSource
         let ioBufferS: Double
@@ -153,7 +153,7 @@ final class AudioRig: ObservableObject {
 
     /// Configures the session, starts the input tap, then loops the tx buffer on the player.
     /// The take stops itself once `durationS` of input has been written.
-    func record(label: String, txFile: String, txChannel: TxChannel, route: Route, mic: MicSource,
+    func record(label: String, txFile: String?, txChannel: TxChannel, route: Route, mic: MicSource,
                 durationS: Int) {
         guard !isRecording else { return }
         guard Recording.isValidLabel(label) else { fail("label must match [A-Za-z0-9_.-]+"); return }
@@ -166,9 +166,9 @@ final class AudioRig: ObservableObject {
         }
     }
 
-    private func start(label: String, txFile: String, txChannel: TxChannel, route: Route,
+    private func start(label: String, txFile: String?, txChannel: TxChannel, route: Route,
                        mic: MicSource, durationS: Int) throws {
-        dlog("--- take '\(label)': tx \(txFile) ch \(txChannel.rawValue), route \(route.rawValue), mic \(mic.rawValue), \(durationS) s")
+        dlog("--- take '\(label)': tx \(txFile ?? "none") ch \(txChannel.rawValue), route \(route.rawValue), mic \(mic.rawValue), \(durationS) s")
         guard AVAudioApplication.shared.recordPermission == .granted else { throw RigError.micPermission }
         try configure(route: route, mic: mic)
         let s = AVAudioSession.sharedInstance()
@@ -181,21 +181,13 @@ final class AudioRig: ObservableObject {
         let polar = selected?.selectedPolarPattern.map { $0.rawValue.lowercased() }
         dlog("selected data source \(dsName ?? "nil"), polar \(polar ?? "nil")")
 
-        // tx WAV: must be mono 48 kHz; the engine would otherwise resample it.
-        guard let txURL = Recording.bundledTxURL(txFile) else { throw RigError.txFile("\(txFile) not in bundle") }
-        let txSha = try Recording.sha256Hex(of: txURL)
-        let txIn = try AVAudioFile(forReading: txURL)
-        guard txIn.fileFormat.sampleRate == 48_000 else { throw RigError.sampleRate(txIn.fileFormat.sampleRate) }
-        guard txIn.fileFormat.channelCount == 1 else {
-            throw RigError.txFile("\(txFile) has \(txIn.fileFormat.channelCount) channels, need 1")
+        // txFile nil = "none (no playback)" (D-088): no player, tx_file / tx_sha256 null.
+        var tx: (stereo: AVAudioPCMBuffer, sha: String)?
+        if let txFile {
+            tx = try loadTx(txFile, channel: txChannel)
+        } else {
+            dlog("tx none (no playback)")
         }
-        guard let mono = AVAudioPCMBuffer(pcmFormat: txIn.processingFormat,
-                                          frameCapacity: AVAudioFrameCount(txIn.length)) else {
-            throw RigError.txFile("cannot allocate \(txIn.length) frames")
-        }
-        try txIn.read(into: mono)
-        let stereo = makeTxBuffer(mono: mono, channel: txChannel)
-        dlog("tx \(txFile): \(mono.frameLength) frames, sha256 \(txSha)")
 
         let engine = AVAudioEngine()
         let input = engine.inputNode
@@ -206,9 +198,13 @@ final class AudioRig: ObservableObject {
         let outRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
         guard outRate == 48_000 else { throw RigError.sampleRate(outRate) }
 
-        let player = AVAudioPlayerNode()
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: stereo.format)
+        var player: AVAudioPlayerNode?
+        if let tx {
+            let p = AVAudioPlayerNode()
+            engine.attach(p)
+            engine.connect(p, to: engine.mainMixerNode, format: tx.stereo.format)
+            player = p
+        }
 
         let take = Recording.uniqueTakeName(for: label)
         let wav = Recording.wavURL(take)
@@ -219,7 +215,7 @@ final class AudioRig: ObservableObject {
 
         // Latencies read at Record start, diagnostics only (D-019, Q5).
         current = PendingTake(take: take, label: label, startedUTC: Recording.utcStamp(Date()),
-                              txFile: txFile, txChannel: txChannel, txSha256: txSha, route: route,
+                              txFile: txFile, txChannel: txChannel, txSha256: tx?.sha, route: route,
                               mic: mic, ioBufferS: s.ioBufferDuration, inputLatencyS: s.inputLatency,
                               outputLatencyS: s.outputLatency, dataSourceName: dsName,
                               polarPattern: polar, routeSignature: AudioRig.signature(s.currentRoute))
@@ -248,9 +244,33 @@ final class AudioRig: ObservableObject {
         } catch {
             throw RigError.engine("start failed: \(error.localizedDescription)")
         }
-        player.scheduleBuffer(stereo, at: nil, options: .loops, completionHandler: nil)
-        player.play()
-        dlog("engine started, player looping")
+        if let player, let tx {
+            player.scheduleBuffer(tx.stereo, at: nil, options: .loops, completionHandler: nil)
+            player.play()
+            dlog("engine started, player looping")
+        } else {
+            dlog("engine started, no playback")
+        }
+    }
+
+    /// Loads a bundled tx WAV; it must be mono 48 kHz (the engine would otherwise resample it).
+    /// Returns the D-032 stereo buffer and the SHA-256 of the file bytes.
+    private func loadTx(_ txFile: String, channel: TxChannel) throws -> (stereo: AVAudioPCMBuffer, sha: String) {
+        guard let txURL = Recording.bundledTxURL(txFile) else { throw RigError.txFile("\(txFile) not in bundle") }
+        let txSha = try Recording.sha256Hex(of: txURL)
+        let txIn = try AVAudioFile(forReading: txURL)
+        guard txIn.fileFormat.sampleRate == 48_000 else { throw RigError.sampleRate(txIn.fileFormat.sampleRate) }
+        guard txIn.fileFormat.channelCount == 1 else {
+            throw RigError.txFile("\(txFile) has \(txIn.fileFormat.channelCount) channels, need 1")
+        }
+        guard let mono = AVAudioPCMBuffer(pcmFormat: txIn.processingFormat,
+                                          frameCapacity: AVAudioFrameCount(txIn.length)) else {
+            throw RigError.txFile("cannot allocate \(txIn.length) frames")
+        }
+        try txIn.read(into: mono)
+        let stereo = makeTxBuffer(mono: mono, channel: channel)
+        dlog("tx \(txFile): \(mono.frameLength) frames, sha256 \(txSha)")
+        return (stereo, txSha)
     }
 
     /// Built outside the main actor so the tap block carries no actor isolation (it runs on

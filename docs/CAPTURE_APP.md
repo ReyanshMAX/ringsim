@@ -158,6 +158,8 @@ does not use them (D-019). `device_model` from `utsname`; do not hardcode.
 Field rules (D-073). Every key is always written; no other keys.
 - `take` = the saved file stem after `_2`/`_3` dedup; `label` = the raw UI text.
 - `tx_sha256` = SHA-256 of the tx WAV file bytes, lowercase hex.
+- `tx_file` and `tx_sha256` are `null` (both, and only these two) for a take recorded with
+  tx file "none (no playback)" (D-088); `tx_channel` is still the picked channel.
 - `duration_s` = frames written / 48000 (see "Take rules").
 - `input_latency_s`, `output_latency_s`, `io_buffer_s` are read at Record start.
 - `data_source_name` / `polar_pattern` = the route input's selected data source and its
@@ -180,7 +182,9 @@ list of saved takes with delete. Files saved to the app's Documents dir as
 
 - tx channel (D-073): no default. Until `UserDefaults` holds `txChannel` the picker shows "not
   set" and Record is disabled; picking a channel writes it to `UserDefaults`.
-- tx file: starts unset ("none"); Record is disabled until one is picked (D-074).
+- tx file: starts unset ("not set"); Record is disabled until one is picked (D-074). The
+  picker also offers "none (no playback)" (D-088): the take records the mic with no player
+  attached (Protocol A step 3 noise floor); tap and file writing are unchanged.
 - Label: Record is disabled while the label is empty or has a character outside
   `[A-Za-z0-9_.-]`.
 
