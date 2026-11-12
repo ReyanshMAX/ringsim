@@ -43,6 +43,38 @@ scene, Q-020 method, capture-app details). New: Q-027 (rig measurements: plate t
 
 ## Seat 5 SPECIALIST (capture app)
 
+Shas on main (all through `scripts/private-commit.sh`, lane files only):
+- 6e847dc capture-app/ (project.yml, Info.plist, Sources: RingCaptureApp, ContentView, AudioRig, Recording,
+  DebugLog), Resources/tx/ WAVs, .github/workflows/ios.yml, CAPTURE_APP.md (D-073, D-074 rules)
+- 1c15710 mic permission at launch (take refused unless granted); abort + delete on AVAudioEngineConfigurationChange
+  and media-services reset; file released before delete in fail()
+- 446d7fb D-084 `UILaunchScreen: {}` + `SWIFT_VERSION: "5.0"` (project.yml and the CAPTURE_APP block together);
+  D-085 measurement-off recipe in CAPTURE_APP "Acceptance"
+- 22660b7 D-088 tx file "none (no playback)": no player, `tx_file` / `tx_sha256` null, schema_version 1, 18 keys
+
+Evidence (command → output):
+- `py -3.13 lanecheck.py <wt>` (scratch; extracts the CAPTURE_APP yaml blocks) → project.yml and ios.yml identical to
+  the spec blocks, yaml.safe_load ok, Info.plist holds every project.yml info property, LANECHECK PASS (at 22660b7)
+- `ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/` → phone_tx.wav 48000 float32 (600,) peak
+  1.0, sha256 216756b8f43e43e3…; sweep_16k_24k_2s.wav 48000 float32 (96000,) peak 1.0, sha256 ca688080ed1bec67…;
+  `git show main:<wav> | sha256sum` gives the same (seat 3 checked them byte-identical to proc's writers)
+- metadata keys = seat 4's `META_KEYS` in validation/real.py (18, cbe4a7a)
+- CI: NOT RUN. No Swift compiler here; the app has never compiled. `git ls-remote origin refs/heads/main` →
+  a071e9e at round end: the user had not pushed, so `gh run list --workflow ios.yml` → 404 (workflow not on the
+  default branch yet). Reviews without a compiler: seat 4 (findings fixed in 1c15710, 446d7fb).
+
+Decisions used: D-073, D-074, D-080 (take names; duplicate `_2` stems raise), D-084, D-085, D-086 (leading silence
+handled in proc, app unchanged), D-087 (Protocol A labels), D-088.
+
+Open in my lane:
+- CAPTURE_APP acceptance (BUILD.md Phase 2 box 1): CI green → [device] steps (sent to the lead, held until green) →
+  user's accept_10s take → `load_capture` length 480000 + `ringsim real` direct_peak_bin 0 → leading-silence length
+  vs the D-086 0.25 s window → D-085 measurement-off branch (only after the acceptance take).
+- Not verified anywhere yet: XcodeGen's flat copy of Resources/tx into the bundle root (the app lists bundle-root
+  WAVs), AVAudioEngine start with no player (D-088 take), Swift 5 compile of the notification / tap closures.
+
+next: CAPTURE_APP acceptance, starting with the CI result after the user's push.
+
 ---
 
 # Round 1 — Phase 1 (2026-11-11)
