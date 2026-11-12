@@ -76,3 +76,10 @@ def test_meta_session_attached(tmp_path):
     assert load_capture(p)[1]["session"] is None
     (tmp_path / "session.json").write_text(json.dumps({"temp_c": 20.5}))
     assert load_capture(p)[1]["session"] == {"temp_c": 20.5}
+
+
+def test_null_tx_fields_accepted(tmp_path):
+    """No-playback takes (D-088): tx_file and tx_sha256 are null, every key still present."""
+    p = _write(tmp_path, np.zeros(10, np.float32), meta=_meta(tx_file=None, tx_sha256=None))
+    _, m = load_capture(p)
+    assert m["tx_file"] is None and m["tx_sha256"] is None

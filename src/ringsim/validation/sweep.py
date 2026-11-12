@@ -58,6 +58,26 @@ def complex_response(sweep_wav: str, capture_wavs: list[str]) -> tuple[np.ndarra
     return freqs, np.mean(Hs, axis=0)
 
 
+def noise_floor_response(sweep_wav: str, noplay_wavs: list[str]) -> tuple[np.ndarray, np.ndarray]:
+    """(freqs, magnitude dB) of a no-playback recording put through the same regularised estimator as `response`,
+    with NO alignment (a no-playback take has no sweep to lock onto, D-089): each recording is cut to the sweep's
+    length from sample 0. Takes are combined by mean power, 10 log10 mean |H|^2 (noise phases are random, a complex
+    average would cancel them)."""
+    if not noplay_wavs:
+        raise ValueError("no captures")
+    sweep = read_wav(sweep_wav).astype(np.float64)
+    n = next_fast_len(2 * len(sweep))
+    S = rfft(sweep, n)
+    denom = np.abs(S) ** 2 + EPS * np.abs(S).max() ** 2
+    pw = []
+    for p in noplay_wavs:
+        x = read_wav(p).astype(np.float64)
+        if len(x) < len(sweep):
+            raise ValueError(f"{p}: shorter than the sweep ({len(x)} < {len(sweep)} samples)")
+        pw.append(np.abs(rfft(x[:len(sweep)], n) * np.conj(S) / denom) ** 2)
+    return rfftfreq(n, 1.0 / SAMPLE_RATE), 10 * np.log10(np.maximum(np.mean(pw, axis=0), 1e-60))
+
+
 def response(sweep_wav: str, capture_wavs: list[str]) -> tuple[np.ndarray, np.ndarray]:
     """(freqs Hz, magnitude dB) of the transducer chain, 20 log10 |mean_k H_k|."""
     f, H = complex_response(sweep_wav, capture_wavs)

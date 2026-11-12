@@ -76,6 +76,12 @@ data/captures/<session>/
 3. Pass condition for using the band: mean response 18–22 kHz at least 20 dB above the
    no-playback noise floor. If it fails, record it and stop; do not add gain stages.
 
+Analysis (`validation/protocol_a.py`, D-087..D-089): session dir `data/captures/<date>_protA/`, labels
+`protA0_<left|right>_<open|ear|grille|rgrille>_t<k>` (rgrille only when neither channel qualifies with the left grille taped),
+`protA1_sweep_t<k>`, `protA2_<mic2|mic1grp>_t<k>`, `protA3_noplay_t<k>`. Level = mean over 18–22 kHz of the aligned,
+complex-averaged response in dB. Step 3 floor: no alignment (a no-playback take has no sweep): the recording cut to the
+sweep length through the same regularised estimator, mean power, dB (`sweep.noise_floor_response`). Output: a dict and `report.md`.
+
 ## Protocol B — flat plate (Phase 2)
 
 Distances: 80, 110, 140, 170, 200 mm. Per distance: 3 takes × 10 s of looped tx frames.
