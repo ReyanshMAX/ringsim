@@ -17,7 +17,6 @@ def test_help_lists_every_subcommand():
 
 
 @pytest.mark.parametrize("argv, phase", [
-    (["validate", "plate", "--sim", "x.h5", "--real", "d", "--out", "r"], "Phase 2"),
     (["validate", "hand", "--sim", "x.h5", "--real", "d", "--out", "r"], "Phase 4"),
     (["converge", "--job", "jobs/converge.yaml", "--dx", "2.0,1.5,1.0"], "Phase 3"),
 ])
