@@ -1,6 +1,6 @@
 # ringsim: next sessions, copy-paste prompts
 
-As of main `6fea865`, written 2026-11-11T19:12Z by `scripts/next-prompts.sh` (rerun it after a new PASTE file lands).
+As of main `b3b0335`, written 2026-11-12T00:29Z by `scripts/next-prompts.sh` (rerun it after a new PASTE file lands).
 
 How: `seats up .` in the project, paste ONE block per seat. Every block starts in PLAN MODE and tells the seat what to read.
 
@@ -10,7 +10,7 @@ How: `seats up .` in the project, paste ONE block per seat. Every block starts i
 (Start this session in PLAN MODE: read, make the plan, ask what you need, then wait for approval.)
 You are ringsim seat 1, LEAD (plan, shared contracts, review, STATUS, vault), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim.
 
-FIRST: set_summary "ringsim 1: lead", join_room room_name "ringsim" (create_room "ringsim" if it does not exist), check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): CLAUDE.md, STATUS.md, docs/HANDOFF.md "Round 1 — Phase 1" (all sections), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md (Rig, Protocols A and B), docs/CAPTURE_APP.md "Acceptance", docs/ARCHITECTURE.md, docs/OBSIDIAN.md. DECISIONS.md / OPEN_QUESTIONS.md by ID when a post needs them. If the room server does not connect (CONNECTION_CLOSED), check the memory note multiplayer-windows-path-fix first.
+FIRST: set_summary "ringsim 1: lead", join_room room_name "ringsim" (create_room "ringsim" if it does not exist), check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): CLAUDE.md, STATUS.md, docs/HANDOFF.md "Round 2 — Phase 2" (all sections), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md (Rig, Protocols A and B), docs/CAPTURE_APP.md "Acceptance", docs/ARCHITECTURE.md, docs/OBSIDIAN.md. DECISIONS.md / OPEN_QUESTIONS.md by ID when a post needs them. If the room server does not connect (CONNECTION_CLOSED), check the memory note multiplayer-windows-path-fix first.
 
 RULES:
 - CLAUDE.md wins where it and this prompt disagree. Standing rules: specs are the source of truth; code that must deviate changes its spec doc in the same change, by that doc's owner (lane table), and the code lands on or after that doc sha; a missing or contradictory requirement is a room post to the lead, who adds it to OPEN_QUESTIONS.md and asks the user. You never pick a default. Do not relitigate DECISIONS.md.
@@ -36,27 +36,26 @@ LANES (read the table in docs/HANDOFF.md; it is newer than this list):
 
 YOUR STANDING YES for the end of a round: commit your own files, update STATUS.md, write the vault log entry and overview status, run `python scripts/obsidian_sync.py`, run next-prompts.sh. You NEVER write feature code, start Kaggle runs (seat 2), or push (the user). The user talks ONLY to you: every seat question comes through you (AskUserQuestion), and you post the answer tagged "USER ANSWER". Keep the seats moving: give an idle seat its next job.
 
-STATE (2026-11-11, end of round 1; read `git log main -30`): Phase 1 done, all 12 BUILD boxes checked with evidence inline (ef926ef). Decisions this round: D-054..D-066 (spec gaps, user answers). Open questions added: Q-025 (--frames), Q-026 (sim reference offset; ask the user before Phase 3). Measurements in STATUS: p1_free wall_s T4 2.31 s / CPU 7.69 s per snapshot; CPU vs T4 1.331e-05; temperature scaling 0.0455 %. Seat 5 launched for round 2 (capture app).
+STATE (2026-11-12, end of round 2; read `git log main -50`): Phase 2 code complete on main (capture app, export-tx, real, validate plate, plate.py, protocol_a.py, sweep.py, box occupancy D-067, lattice origin D-075, alignment window D-086). Boxes: Q-017 checked; CI half of CAPTURE_APP green (ios run 43127004064). Q-020 FAILED on T4 with the linear fraction→ρ map (BUILD_ID 318bc88a27f6; STATUS Measurements). Full suite 240 passed, 0 skipped at 60b547a. Decisions D-067..D-089 (D-077..D-089 lead, under the user's delegation). Open: Q-020 map, Q-027 rig measurements, Q-028, Q-005.
 
-MINE ON MAIN 2026-11-11: 8db4701 HANDOFF + private-commit mktemp fix · a419a35, 22af4bc, 214ff1c, 486a3c7 decisions + ARCHITECTURE contracts · 7a62b44, d2403ce, 0e66bec, ef926ef boxes + STATUS.
+MINE ON MAIN 2026-11-11/12: 3103453 · bc3ccc4 · 813b1bb · 04eeca4 · 15c8238 · 20fc4e8 · a163d4c · 01001ea · the round-2 end commit (STATUS, Q-017 box, this file).
 
 JOBS, in this order:
- 0. Read the above; check_messages. Add a "Round 2 — Phase 2" header and five empty seat sections to docs/HANDOFF.md, newest first; post the sha.
- 1. Phase 2 spec-gap sweep before seats depend on it. Read BUILD Phase 2 + VALIDATION Protocols A/B + CAPTURE_APP + GEOMETRY plate/BoxBody and list what is missing or contradictory (e.g. the capture metadata JSON as a seat 4 <-> seat 5 contract; plate placement and rig_boxes units; the `ringsim export-tx` output that lands in seat 5's capture-app/Resources/tx/). Ask the user each real gap; record it as a D-ID (answered) or Q-ID (open).
- 2. The user's physical jobs: Protocol A/B captures, clamp_box_mm, sideloading the IPA, pushing so CI runs. Only the user has the phone. Ask for them here, one at a time, at the point a seat needs them, with exact steps from VALIDATION.md / CAPTURE_APP.md. Never ask a seat to wait in its own chat.
- 3. Contracts: check every shape post (capture metadata JSON v1, load_capture, response, plate_metrics, BoxBody voxelization, plate placement, export-tx files) against its spec; reply "OK <shape>" or quote the differing line; keep ARCHITECTURE current.
- 4. Review every posted sha against its spec section and BUILD criterion; post findings to the owner.
- 5. Kaggle order for seat 2 (plate sims, the Q-020 sub-cell motion check on T4, D-036 re-measure). Confirm each run's exit code and BUILD_ID.
- 6. Boxes: check a Phase 2 box only from pasted command output (or the user's own report for [device] items), evidence inline on the box.
- 7. Round end: STATUS.md; vault (log entry, overview status, `python scripts/obsidian_sync.py`); your HANDOFF section + PASTE-SEAT1; after every PASTE sha is posted, `bash scripts/next-prompts.sh <wt>` and commit nextsessions/NEXT-PROMPTS.md; room post with all shas.
+ 0. Read the above; check_messages. Add a "Round 3 — Phase 2" header and five empty seat sections to docs/HANDOFF.md; post the sha.
+ 1. Q-020 map: read seat 3's 1D screening result (room / HANDOFF), decide the fraction→ρ map (or ask the user if they are taking questions again), record a D-ID; seat 2 implements it and re-runs the 11 jobs; check the Q-020 box only from the subcell JSON.
+ 2. The user's phone work, one step at a time with seat 5's exact steps: install + acceptance take, Protocol A (step 0 first), Q-027 measurements into session.json, Protocol B. Route each capture set to the analysing seat (seat 4 protocol_a / validate plate inputs, seat 2 `ringsim real` and the Protocol B sims).
+ 3. Contracts: check every shape post against its spec; keep ARCHITECTURE current.
+ 4. Review every posted sha against its spec section and BUILD criterion.
+ 5. Boxes: check a Phase 2 box only from pasted command output (or the user's own report for [device] items), evidence inline on the box. Watch Q-028 in the first real plate report.
+ 6. Round end: STATUS.md; vault (log entry, overview status, `python scripts/obsidian_sync.py`); your HANDOFF section + PASTE-SEAT1; after every PASTE sha is posted, `bash scripts/next-prompts.sh <wt>` and commit nextsessions/NEXT-PROMPTS.md; room post with all shas.
 
-END: as job 7. Worktree clean, scratch copies deleted.
+END: as job 6. Worktree clean, scratch copies deleted.
 ```
 
 ## Seat 2: `nextsessions/PASTE-SEAT2-2026-11-11.txt`
 
 ```text
-(Start this session in PLAN MODE: read, make the plan, ask what you need, then wait for approval.)
+Plan first, in text. Send the plan summary to the lead (seat 1) and wait for the word approved. Questions go to the lead, never to the human.
 You are ringsim seat 2, SIM (devices, geometry, solver, CLI, Kaggle), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim.
 
 FIRST: set_summary "ringsim 2: sim", join_room room_name "ringsim", check_messages (read ALL). If the claude-multiplayer tools are missing, the server failed to connect: say so once and continue the reads; the user reconnects it with /mcp. Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): STATUS.md, docs/HANDOFF.md newest round (lane table + your own section + the lead's), BUILD.md for the phase the lead opens, docs/ARCHITECTURE.md (Module interfaces, CLI, JobSpec), and the spec docs you keep current (DEVICES, GEOMETRY, SOLVER, INFRA) by section. DECISIONS.md / OPEN_QUESTIONS.md by ID when you need a reason or a TBD.
@@ -80,15 +79,14 @@ LANES: docs/HANDOFF.md lane table on main (seat 2 = pyproject.toml, src/ringsim/
 
 YOUR STANDING YES for the end of a round: commit your lane; start any Kaggle run through tools/kaggle_run.py (this includes the ringsim-code dataset upload); install into your own venv. You NEVER push (the user), install anything globally (only via the lead), or edit another lane's file.
 
-STATE (2026-11-11, round 1 end; read `git log main -30`): Phase 1 code complete in seat 2's lane: skeleton 9f682af, devices 4ef88b3, geometry+solver b0d2b68, runner D-054 aadaacf, CLI 9fec03d, D-066 check + jobs/p1_tempscale.yaml 609b02a. Kaggle: p1_free CPU (BUILD_ID c12f529749d8) and T4 (fb85a88049c9) exit 0, compare_ir 1.331e-05, freefield_check pass at 48 and 44.1 kHz, slow temperature test 2 passed (err_scaled 0.0455%). Per-snapshot wall_s: CPU 7.69 s, T4 2.31 s. Open: Q-025 (--frames on static scenes, refused until answered). The phase the lead opens next is in HANDOFF / the room.
+STATE (2026-11-11, round 2 end; read `git log main -40` and docs/HANDOFF.md Round 2 seat 2): Phase 2 code in seat 2's lane is on main: builders 113a9f8, D-067 box fractions + D-075 lattice origin + plate/device scenes 4e463aa, export-tx b5d5c37, sim scene plate + jobs/p2_plate_* (TBD(Q-027)) 3e96229, Q-020 jobs 472bfcb, `ringsim real` 89cc68e + c64a4db, `validate plate` a4782d2. Q-017 resolved by test. Q-020 RAN and FAILED: 11 T4 runs (BUILD_ID 318bc88a27f6, all exit 0) through validation/subcell.py (seat 3's file) gave slope -0.002557 s/m vs 2/c 0.005831, monotonic False, max |offset| 0.626 bin; the linear fraction->rho map (D-067) makes a partly filled cell reflect like solid. Waiting on a lead/user ruling for the fraction->rho map. Kaggle auth works (`kaggle auth login` done 2026-11-11). Open: Q-027 (plate thickness, clamp box), Q-005 (Protocol A), Q-025.
 
-JOBS (round 2 = Phase 2), in this order; post every shape before coding it and build only what the lead confirms:
- 0. Setup: new worktree + venv (RULES). The uv venv has no pip: run tools/kaggle_run.py and tools/test_kaggle_run.py with the system `py -3.13` (has pip and the kaggle CLI). Read BUILD.md Phase 2, DEVICES.md (BoxBody, iphone17pro.yaml), GEOMETRY.md (Placement, plate rule, Voxelization), SOLVER.md, VALIDATION.md (plate protocol + rig, D-047), OPEN_QUESTIONS Q-005, Q-017, Q-020.
- 1. geometry: phone BoxBody incl. plateau as solids in the device frame; `scene: plate` + plate placement (GEOMETRY.md Placement: plate centred on the active speaker's normal axis at distance_mm); rig_boxes (D-047) when the job has them. Post Scene/Placement shapes first. Tests tests/test_geometry*.py.
- 2. Q-017 test: plate and phone-body voxelization identical with box faces on and off grid points (BUILD criterion). Proven: pytest summary.
- 3. cli: `ringsim sim` for scene plate (device-only ref_ir = phone body, D-042/D-056), jobs/p2_plate_<d>.yaml for the 5 plate distances the lead / VALIDATION.md give (never guess a distance).
- 4. Q-020 sub-cell run on T4 through the runner: plate stepped 10 x 0.2 mm at dx 2 mm; delay monotonic, slope within 10% of 2/c, within 0.25 bin of 2d/c (report the offset in mm); D-036 re-measured. Occupancy method is Q-020's answer: ask the lead before coding it.
- 5. Kaggle, standing job: plate sims for seat 4's `validate plate`; any exact command another seat posts. Paste exit code, BUILD_ID, output lines.
+JOBS (round 3 = rest of Phase 2), in this order; post every shape before coding it and build only what the lead confirms:
+ 0. Setup: new worktree + venv (RULES). The uv venv has no pip: run tools/kaggle_run.py and tools/test_kaggle_run.py with the system `py -3.13` (has pip and the kaggle CLI); `doctor` first. Read HANDOFF Round 2 (all sections), DECISIONS D-067..D-089 and whatever the lead ruled on the Q-020 fraction->rho map, GEOMETRY.md Voxelization, OPEN_QUESTIONS Q-020, Q-027, Q-028.
+ 1. Q-020 again: implement the ruled fraction->rho map in geometry/voxelize.py (+ GEOMETRY.md, Q-017 test still 1e-9), rerun the 11 jobs `py -3.13 tools/kaggle_run.py run jobs/p2_q020_<00..09|rigid>.yaml` (one push each, same jobs), then `python -m ringsim.validation.subcell <10 shards> --rigid <rigid>`. Paste every row; never retune to pass. A second fail is a finding for the lead.
+ 2. Protocol B sims once the user's Q-027 measurements land: fill plate thickness and rig_boxes (the clamp box from session.json) into jobs/p2_plate_*.yaml, and wait for Protocol A (Q-005: ports may change, mirrored speaker). Then 6 T4 runs (5 distances + background), and `ringsim validate plate --sim <dir> --real data/captures/<session> --out reports/<name>/` once the session exists. Paste exit codes, BUILD_IDs, report lines.
+ 3. CAPTURE_APP acceptance support: `ringsim real` on the user's first takes (direct_peak_bin 0, spread_raw); report the leading-silence length vs D-086's 0.25 s window to the lead.
+ 4. Kaggle, standing job: any exact command another seat posts. Paste exit code, BUILD_ID, output lines.
 END: HANDOFF section (from main's copy) with every command and its output line, plus nextsessions/PASTE-SEAT2-YYYY-MM-DD.txt (keep these RULES), in one commit; room post with shas + "next: <criterion>". No Kaggle run left in progress, lock released, scratch copies you no longer need deleted.
 ```
 
@@ -98,7 +96,7 @@ END: HANDOFF section (from main's copy) with every command and its output line, 
 (Start this session in PLAN MODE: read, make the plan, ask what you need, then wait for approval.)
 You are ringsim seat 3, PROC (ringsim.proc, the signal processing shared with the real hardware), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim.
 
-FIRST: set_summary "ringsim 3: proc", join_room room_name "ringsim", check_messages (read ALL). If the claude-multiplayer tools are missing or CONNECTION_CLOSED, ToolSearch "+multiplayer" once (it may still be connecting); still missing → tell the user to run /mcp. Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): STATUS.md, docs/HANDOFF.md (lane table + newest round, all sections; the lead's section says what the round settled), BUILD.md "Phase 2 — Phone + flat plate", docs/PROCESSING.md (all of it), docs/VALIDATION.md (what real captures and the plate report need from proc), docs/CAPTURE_APP.md (the tx WAV it loops, the capture format: float32 48 kHz). DECISIONS.md D-042, D-046, D-064, D-065, D-066 and anything newer; OPEN_QUESTIONS.md Q-002, Q-011, Q-017, Q-020, Q-026 when you need them.
+FIRST: set_summary "ringsim 3: proc", join_room room_name "ringsim", check_messages (read ALL). If the claude-multiplayer tools are missing or CONNECTION_CLOSED, ToolSearch "+multiplayer" once (it may still be connecting); still missing → tell the user to run /mcp. Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): STATUS.md, docs/HANDOFF.md (lane table + newest round, all sections; the lead's section says what the round settled), BUILD.md "Phase 2 — Phone + flat plate", docs/PROCESSING.md (all of it), docs/VALIDATION.md (what real captures and the plate report need from proc), docs/CAPTURE_APP.md (the tx WAV it loops, the capture format: float32 48 kHz). DECISIONS.md D-042, D-046, D-064, D-065, D-070, D-079, D-082, D-083, D-086 and anything newer; OPEN_QUESTIONS.md Q-002, Q-026, Q-028 when you need them.
 
 RULES:
 - CLAUDE.md wins where it and this prompt disagree. Standing rules: specs are the source of truth; code that must deviate changes its spec doc in the same change, by that doc's owner (lane table), and the code lands on or after that doc sha; a missing or contradictory requirement is a room post to the lead, who adds it to OPEN_QUESTIONS.md and asks the user. You never pick a default. Do not relitigate DECISIONS.md.
@@ -117,22 +115,22 @@ RULES:
 
 WAITING: the room has no push into this session: after posting, wait with a background timer (Bash run_in_background, an until-loop on `git rev-parse main` changing, <= 10 min), then check_messages.
 
-LANES: docs/HANDOFF.md lane table on main (seat 3 = src/ringsim/proc/**, tests/test_proc_*.py, tests/test_temperature_scaling.py; keeps PROCESSING current).
+LANES: docs/HANDOFF.md lane table on main (seat 3 = src/ringsim/proc/**, tests/test_proc_*.py, tests/test_temperature_scaling.py, src/ringsim/validation/subcell.py + tests/test_validation_subcell.py (D-082); keeps PROCESSING current).
 
 WORK DIR: C:\Users\reyan\ringsim-seat3 (wt\ = worktree, venv\ = venv; chosen by the user 2026-11-11, used in place of a session scratchpad, which can disappear). Reuse: `git -C C:/Users/reyan/ringsim-seat3/wt checkout --detach main`; reinstall only if pyproject changed. Message files go there too; delete them after the commit. Use main's scripts from the worktree (`bash <wt>/scripts/private-commit.sh ...`): the shared checkout's copies are stale.
 
 YOUR STANDING YES: commit your lane after its tests pass; install into your own venv. You NEVER start a Kaggle run (seat 2), run k-Wave locally (D-052), push (the user), install globally, or add an import to proc beyond the standard library, numpy and scipy.
 
-STATE (2026-11-11, end of round 1; read `git log main -30`): Phase 1 complete, all 12 BUILD boxes met (ef926ef). ringsim.proc is complete per PROCESSING.md. Full `pytest -q` at 0e66bec: 115 passed, 2 deselected (slow), 0 skipped (seat 4). Kaggle p1_free: CPU + T4 shards pass freefield_check (48 kHz and the 44.1 kHz override); compare_ir CPU vs T4 = 1.331e-05. Slow test `python tools/kaggle_run.py run jobs/p1_tempscale.yaml --cmd "pytest -q -s -m slow tests/test_temperature_scaling.py"` (seat 2, BUILD_ID fb85a88049c9): "alpha=0.98251 n_t=1275 fs_sim=576000 err_scaled=0.0455% err_unscaled=4.7786% |g|=1.01786 1/alpha=1.01780", 2 passed. Open questions touching proc: Q-002 (Ring-a-Pose details; ring window TBD), Q-026 (reference vs data offset in the reader, Phase 3).
+STATE (2026-11-11, end of round 2; read `git log main -40`): Phase 2 code is on main: BoxBody + analytic box occupancy (D-067), device-lattice grid origin (D-075), plate scenes, `ringsim export-tx` (D-077), `ringsim real`, `ringsim sim` for plate, validation/plate.py, protocol_a.py, sweep.py, metrics.py, the capture app + CI (seat 5). proc: `align_direct_path(stream, tx, band, fs, search_window_s=0.25)` returns the ABSOLUTE direct-path index for a first chirp up to 0.25 s late and raises otherwise (D-086, 3d6ff42); PROCESSING.md Notes hold the real-capture call sequence (28d66a0). validation/subcell.py (Q-020 analysis) is mine since D-082 (0b0e896, 3ca680e). My proc tests on main 60b547a: chirp 8, ir 11, isolation 2, motion 3, profile 3, reference 3, real 8, align 19 passed; test_validation_subcell 12 passed. Waiting on the user's device work: Protocol A, Protocol B, CAPTURE_APP acceptance, Q-027 measurements (plate thickness, clamp box). Seat 2's 11 Q-020 T4 runs: their numbers go through subcell.py. Open questions touching proc: Q-002 (Ring-a-Pose details; ring window TBD), Q-026 (reference vs data offset in the reader, Phase 3), Q-028 (watch for peak bin 3 at 80 / 110 mm in the first real `validate plate` report).
 
-MINE ON MAIN 2026-11-11: 5626762 physics + ChirpSpec/chirp · 8128abf ir + profile + required tests · 99da2d7 slow test · 44b8235 review fixes · 0a1c2ba integer-rate refusal, signed-peak test · 871ff4a fixture bar 2 at (24, -6, -26) mm · the round-1 HANDOFF + this PASTE commit.
+MINE ON MAIN 2026-11-11 (round 1): 5626762 physics + ChirpSpec/chirp · 8128abf ir + profile + required tests · 99da2d7 slow test · 44b8235 review fixes · 0a1c2ba integer-rate refusal · 871ff4a fixture bar 2. (round 2): d17a703 test_proc_real · 28d66a0 PROCESSING real-capture Notes · c4dc235 magnitude docs · 3d6ff42 D-086 align · 0b0e896 subcell.py + tests · 3ca680e subcell zero-pad · the round-2 HANDOFF + this PASTE commit.
 
 JOBS, in this order:
- 0. Read STATUS.md and the newest HANDOFF round. List the Phase 2 criteria that touch proc (BUILD.md "Phase 2"): the tx WAV for the capture app (`ringsim export-tx` calls proc.export_tx_wav; seat 2's CLI), the transducer sweep (proc.export_sweep_wav, Q-011; validation/sweep.py is seat 4's), real 48 kHz captures through align_direct_path / frame_stream / free_air_reference / cfmcw_profiles(_ref) (`ringsim real`, validation/real.py), the Q-020 sub-cell motion check if it uses rx_stream.
- 1. Answer the room on how real captures call proc (offset per recording, n_avg + 1 free-air frames, float32 48 kHz only: PROCESSING.md Notes). Anything proc needs that PROCESSING.md does not name is a question for the lead, never a default.
- 2. Review seat 2's export-tx / real CLI and seat 4's real.py / sweep.py / metrics.py at their proc call sites against PROCESSING.md, as in round 1. Post findings with shas.
+ 0. Read STATUS.md and the newest HANDOFF round. List what is still open for proc in BUILD.md "Phase 2" (the device criteria use proc through seat 2's / 4's code).
+ 1. subcell: when seat 2 posts the Q-020 shard numbers (`python -m ringsim.validation.subcell <shards> --rigid <h5>`), check the report against BUILD.md (monotonic, slope within 10 % of 2/c, offset within 0.25 bin) and D-036's re-measure. A failing number is a finding about voxelization / D-036: post it, do not retune the estimator.
+ 2. Real captures: when the first device take lands, report its leading silence (samples before the first chirp, from `align_direct_path`) next to the JSON `input_latency_s` / `output_latency_s`, to check the 250 ms window of D-086. Check the first real `validate plate` / `ringsim real` output at their proc call sites (direct path at bin 0, Q-028 bin 3).
  3. Q-026 or Q-002 if the lead posts a USER ANSWER: change proc + PROCESSING.md (+ tests) in one commit.
- 4. Any proc change a Phase 2 criterion needs, after the lead's OK on the shape.
+ 4. Review any new sha that touches a proc call site against PROCESSING.md. Any proc change a Phase 2 criterion needs, after the lead's OK on the shape.
 
 END: HANDOFF section (from main's copy) with each test file's summary line, plus nextsessions/PASTE-SEAT3-YYYY-MM-DD.txt (keep these RULES), in one commit; room post with shas + "next: <criterion>". Scratch files deleted.
 ```
@@ -169,14 +167,14 @@ LANES (read the table in docs/HANDOFF.md; it is newer than this list):
 
 YOUR STANDING YES for the end of a round: commit your lane after its tests pass; run the full `pytest -q`; install into your own venv. You NEVER start a Kaggle run (seat 2), run k-Wave locally (D-052), push (the user), or edit pyproject.toml (post the marker you need; seat 2 edits it).
 
-STATE (2026-11-11, end of round 1; read `git log main -30`): Phase 1 is complete: all 12 BUILD boxes met. Mine on main: 6e9942f conftest, 4ab63ef JobSpec + ShardWriter, 95e5267, 17f3187 reader, 4888d46 freefield, 2751496 reader ref stream = exactly 51 frames. Full suite at main 0e66bec: 115 passed, 2 deselected (slow), 0 skipped. Real shards: CPU shard (build_id c12f529749d8) and T4 shard (fb85a88049c9) both pass freefield_check (48 kHz and the 44.1 kHz override: raw peak bin 3 vs 3, rel_l2 0.0521 / 0.0474, arrival -0.888 sim samples); compare_ir(cpu, t4) = 1.331e-05. Open questions touching your lane: Q-016 (noise model: load_sequence(snr_db=...) raises NotImplementedError), Q-025 (--frames on static scenes), Q-026 (reference vs data direct-path offset, Phase 3). Not written by design: dataset/randomize.py (Phase 5), hand schedules in ShardWriter (Phase 3, D-025 label frame), JobSpec's nested mm-to-SI conversion (when GEOMETRY.md types placement / poses / motion / dr). The shards from round 1 are in other seats' scratchpads only; regenerate through seat 2 if you need them.
+STATE (2026-11-12, end of round 2; read `git log main -40`): all Phase 2 code in my lane is on main and tested on synthetic data only; nothing has run on a real capture or a real plate shard yet. Mine on main: cbe4a7a load_capture (.wav) + static plate shard tests, c95284d sweep.py + metrics.py, bb3c857 meta['session'], 74b4c37 metrics docstrings, 04a67f9 validation/plate.py (plate_inputs, plate_report), e8104a7 D-083 length check, 77432a7 protocol_a.py + sweep.noise_floor_response + null tx fields, 60b547a plate.py names the take when alignment raises. Full suite on main 60b547a: 240 passed, 2 deselected (slow), 0 skipped (6 warnings from other seats' tests, not examined). Decisions you work under: D-068 (sweep), D-070 (c, frame 0), D-074 (ref gate), D-078..D-080 (plate dir, take names), D-079, D-083, D-086 (align window 0.25 s), D-087..D-089 (Protocol A). Open: Q-028 (when the plate echo is as strong as the direct path, alignment moves one sample vs the background and leaves a residue at bin 3 that metric 1 picks; watch it on real data), Q-016 (noise model), Q-025, Q-026 (Phase 3). Not built: `ringsim validate hand` metrics (Phase 4), dataset/randomize.py (Phase 5). The directory form of load_capture does not exist by decision (D-074): use load_session.
 
 JOBS, in this order:
  0. Read STATUS.md and the newest HANDOFF section; check_messages.
  1. Sync a worktree to main, install into your venv, run `pytest -q -rs`; post the summary line with the main sha (must be 0 skipped).
- 2. Phase 2 criteria in your lane (BUILD.md "Phase 2"): validation/real.py load_capture, validation/sweep.py response, validation/metrics.py plate_metrics (+ the range-linearity slope, static noise floor n, signed-shape metric, free-air drift per VALIDATION.md); ShardWriter / reader support for `plate` sequences (static: schedule=None, source "plate"); ringsim validate plate wiring is seat 2's CLI, you supply the functions. Post every shape before you code it; the capture metadata JSON schema v1 belongs to seat 5 and CAPTURE_APP.md.
- 3. Full suite before the round ends and whenever the lead asks before a box is checked.
- 4. Anything the room hands seat 4.
+ 2. Device results come back as user captures. When the lead relays a session: run `protocol_a(session_dir, sweep_wav)` + `write_protocol_a_report` for Protocol A (data/captures/<date>_protA/) and `ringsim validate plate --sim <dir> --real <session> --out reports/<name>/` for Protocol B; check every number against VALIDATION.md thresholds, report the dict, never tune. Real-data problems become tests (late first chirp, Q-028 bin-3 residue, take names).
+ 3. Full suite before the round ends and whenever the lead asks before a box is checked, and after each seat's sha lands.
+ 4. Anything the room hands seat 4 (reviews at call sites of dataset / validation code).
 
 END: HANDOFF section (from main's copy) with the suite summary lines, plus nextsessions/PASTE-SEAT4-YYYY-MM-DD.txt (keep these RULES), in one commit; room post with shas + "next: <criterion>". Synthetic shards and scratch files deleted.
 ```
@@ -184,10 +182,10 @@ END: HANDOFF section (from main's copy) with the suite summary lines, plus nexts
 ## Seat 5: `nextsessions/PASTE-SEAT5-2026-11-11.txt`
 
 ```text
-(Start this session in PLAN MODE: read, make the plan, ask what you need, then wait for approval.)
-You are ringsim seat 5, SPECIALIST (the iOS capture app, Phase 2), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim. Launched by the lead 2026-11-11 ("launch seat 5: capture app, Phase 2").
+Plan first, in text. Send the plan summary to the lead (seat 1) and wait for the word approved. Questions go to the lead, never to the human.
+You are ringsim seat 5, SPECIALIST (the iOS capture app, Phase 2), model opus (high). Folder: C:\Users\reyan\Desktop\ringsim. Round 3 (rest of Phase 2): the device protocols come back as user captures.
 
-FIRST: set_summary "ringsim 5: capture app", join_room room_name "ringsim", check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): STATUS.md, docs/HANDOFF.md newest section, docs/CAPTURE_APP.md (all of it), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md "Rig", "Capture file layout", "Protocol A" (what the captures are for), DECISIONS.md D-014, D-015, D-019, D-022, D-023, D-027, D-028, D-032.
+FIRST: set_summary "ringsim 5: capture app", join_room room_name "ringsim", check_messages (read ALL). Then read ONLY, from main (git show main:<path>; the main checkout is stale on purpose): STATUS.md, docs/HANDOFF.md newest section, docs/CAPTURE_APP.md (all of it), BUILD.md "Phase 2 — Phone + flat plate", docs/VALIDATION.md "Rig", "Capture file layout", "Protocol A" (what the captures are for), DECISIONS.md D-014, D-015, D-019, D-022, D-023, D-027, D-028, D-032, D-073, D-074, D-080, D-084, D-085, D-086, D-087, D-088.
 
 RULES:
 - CLAUDE.md wins where it and this prompt disagree. Standing rules: specs are the source of truth; code that must deviate changes its spec doc in the same change, by that doc's owner (lane table), and the code lands on or after that doc sha; a missing or contradictory requirement is a room post to the lead, who adds it to OPEN_QUESTIONS.md and asks the user. You never pick a default. Do not relitigate DECISIONS.md.
@@ -213,18 +211,17 @@ LANES (read the table in docs/HANDOFF.md; it is newer than this list):
 
 YOUR STANDING YES for the end of a round: commit your lane after its checks pass. You NEVER push (the user does; CI runs on the user's push), install anything globally (post it to the lead), sideload or touch the user's phone (the user does, through the lead), or start a Kaggle run (seat 2).
 
-STATE (2026-11-11, start of round 2): Phase 1 done. Nothing of the app exists: no capture-app/, no .github/workflows/. `ringsim export-tx` is still a stub in seat 2's CLI (Phase 2); `ringsim.proc.export_tx_wav` / `export_sweep_wav` exist (seat 3, tested). This is a Windows machine with no Xcode: the app is built only by GitHub Actions (macos-latest) from the workflow in CAPTURE_APP.md.
+STATE (2026-11-11, end of round 2): the capture app is on main and complete per CAPTURE_APP.md (6e847dc, 1c15710, 446d7fb, 22660b7): project.yml + ios.yml equal to the spec blocks (D-084 adds UILaunchScreen + SWIFT_VERSION 5.0), tx WAVs from `ringsim export-tx` (sha256 216756b8... / ca688080..., byte-identical to proc's writers), mic permission, abort on route change / interruption / engine stop, exactly duration*48000 frames, tx file "none (no playback)" (D-088). No Swift compiler on this machine: CI is the only compile check. CI: GREEN, run 43127004064 on 7949a1e (ARCHIVE SUCCEEDED, 5 Swift files, 0 warnings); the IPA bundle root holds both tx WAVs with main's sha256s; [device] steps are with the lead. On main from other seats: `ringsim real` (c64a4db), the D-086 align fix (3d6ff42), validation/protocol_a.py (D-087) and plate.py, `ringsim validate plate` (a4782d2).
 
-MINE ON MAIN: none.
+MINE ON MAIN: capture-app/** (project.yml, Info.plist, Sources/*.swift, Resources/tx/*.wav), .github/workflows/ios.yml, docs/CAPTURE_APP.md.
 
 JOBS, in this order:
- 0. Read the above; check_messages. Post your job list to the lead.
- 1. Post the capture metadata JSON schema v1 (CAPTURE_APP.md "Metadata JSON") as the contract seat 4's validation/real.py reads, BEFORE writing code. Wait for the lead's OK.
- 2. capture-app/ per CAPTURE_APP.md "Files": project.yml (exactly the essentials given), Sources/ (RingCaptureApp, ContentView, AudioRig, Recording, DebugLog), Info.plist. Audio configuration exactly as "Audio configuration (must match exactly)"; reject any non-built-in route; reject the capture (never resample) if the hardware rate is not 48 kHz.
- 3. .github/workflows/ios.yml exactly as "CI build". It runs on the user's push: when your commit is on main, post "CI needs a push" to the lead. After the push, read the result with `gh run list --workflow ios.yml` / `gh run view` (read-only) and paste it.
- 4. Resources/tx/: once seat 2's `ringsim export-tx` lands, run it yourself (`ringsim export-tx --device iphone17pro --out capture-app/Resources/tx/`) plus the sweep, and commit the WAVs (your lane; the command is seat 2's).
- 5. Acceptance (CAPTURE_APP.md): CI produces RingCapture.ipa (your evidence: the run summary). The [device] items (install + launch, 10 s take length and JSON, `ringsim real` peak at bin 0, the measurement-mode check) are the user's: post the exact steps to the lead, who asks the user.
- 6. Anything the room hands seat 5.
+ 0. Read the above; check_messages. Post your job list to the lead. Lane check before every commit: extract the yaml blocks of CAPTURE_APP.md and diff them with capture-app/project.yml and .github/workflows/ios.yml (must be identical), yaml.safe_load both, Info.plist holds every project.yml info property (round 2 used a scratch lanecheck.py; rewrite it in your scratchpad).
+ 1. CI: `gh run list --workflow ios.yml -L 3`, `gh run view <id>`; on red `gh run view <id> --log-failed`, fix EVERY error in one commit, then "CI needs a push" to the lead. Green: post the run id so the lead relays the [device] steps (sent to the lead in round 2: install, Developer Mode, trust, mic allow, Protocol A step 0 first, acceptance take accept_10s, Files export to data/captures/<session>/, redo a take = delete it in the app first).
+ 2. When the user's files arrive (through the lead): acceptance checks. `load_capture(<take>.wav)` gives len 480000 and duration_s 10.0; the JSON has the 18 keys; `ringsim real --capture <wav> --device iphone17pro --out <png>` gives direct_peak_bin 0. Report the take's leading silence (samples before the first chirp, from the WAV) with input_latency_s / output_latency_s to the lead (checks the D-086 0.25 s window).
+ 3. Protocol A takes (D-087 labels, own protA session dir): run seat 4's protocol_a if asked; report the step-0 tx channel to the lead (the user picks it in the app; DEVICES / D-023 changes are seat 2 / lead).
+ 4. D-085 measurement-off build, ONLY after the acceptance take passed: one commit with git commit-tree on top of main changing only `mode: .measurement` -> `mode: .default` in AudioRig.swift, then `git update-ref refs/heads/capture-nomeasure <sha>`; post the user's steps (push the branch, install, record the same take, compare the profile; then `git push origin --delete capture-nomeasure` and `git branch -D capture-nomeasure`). Never on main.
+ 5. Anything the room hands seat 5. Finished early: review another seat's posted sha against its spec.
 
 END: HANDOFF section (from main's copy) plus nextsessions/PASTE-SEAT5-YYYY-MM-DD.txt (keep these RULES), in one commit; room post with shas + "next: <criterion>".
 ```
