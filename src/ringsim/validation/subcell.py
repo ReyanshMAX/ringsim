@@ -56,7 +56,8 @@ def envelope_lag(sig: np.ndarray, pulse: np.ndarray, fs: float, gate_s: tuple[fl
     sig = np.asarray(sig, np.float64)
     pulse = np.asarray(pulse, np.float64)
     xc = correlate(sig, pulse, mode="full", method="fft")           # lags -(len(pulse)-1) .. len(sig)-1
-    env = np.abs(hilbert(xc))
+    pad = len(xc)                                                   # zero-padded: scipy's hilbert is circular (as in
+    env = np.abs(hilbert(np.concatenate([np.zeros(pad), xc, np.zeros(pad)])))[pad:-pad]   # proc.align_direct_path)
     off = len(pulse) - 1                                            # array index of lag 0
     lo = int(np.ceil(gate_s[0] * fs)) + off
     hi = int(np.floor(gate_s[1] * fs)) + off
