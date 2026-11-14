@@ -31,6 +31,8 @@ processed with the same `ringsim.proc` code as sim (D-008).
   speaker port's normal axis. Distance measured port-to-plate with a ruler, ±2 mm.
 - Quiet room; record room temperature (°C) per session. Sims run at 343 m/s as always; the
   session temperature is passed to the reader as `temp_c` (D-037).
+- Phone media volume at maximum for every take, never changed mid-session (D-090). Case off, Airplane mode
+  and Do Not Disturb on, Bluetooth off, USB-C port empty.
 
 ## Capture file layout
 
@@ -78,7 +80,7 @@ data/captures/<session>/
 
 Analysis (`validation/protocol_a.py`, D-087..D-089): session dir `data/captures/<date>_protA/`, labels
 `protA0_<left|right>_<open|ear|grille|rgrille>_t<k>` (rgrille only when neither channel qualifies with the left grille taped),
-`protA1_sweep_t<k>`, `protA2_<mic2|mic1grp>_t<k>`, `protA3_noplay_t<k>`. Level = mean over 18–22 kHz of the aligned,
+`protA1_sweep_t<k>`, `protA2_<mic2|mic1grp>_t<k>`, `protA3_noplay_t<k>`; every take 10 s (D-090). Level = mean over 18–22 kHz of the aligned,
 complex-averaged response in dB. Step 3 floor: no alignment (a no-playback take has no sweep): the recording cut to the
 sweep length through the same regularised estimator, mean power, dB (`sweep.noise_floor_response`). Output: a dict and `report.md`.
 
