@@ -44,10 +44,14 @@ frames, whether t0 is re-detected per frame or fixed per session.
 Three unknowns, all settled by Protocol A (VALIDATION.md):
 - which stereo channel drives only the bottom speaker, and whether the earpiece can be
   silenced at all (step 0, D-032)
-- whether the speaker grille is on the side the drawing mapping puts it (step 0)
+- whether the speaker grille is on the side the drawing mapping puts it (step 0). Drawing re-read
+  2026-11-13 (sheet 1, detail B, rendered): the bottom view uses screen-view x (third-angle projection;
+  the camera lenses behind the edge sit at x_draw ≈ 31–47 and 50–66, matching the rear view's 14.37 / 32.36
+  mirrored), so the left-hand mapping matches the drawing; step 0 still confirms it acoustically
 - which physical mic is iOS's `bottom` data source; config assumes bottom mic 2 (D-023).
-  The right-hand port group (x_draw 47.43–56.45) holds bottom mic 1; the drawing's
-  leader to it is ambiguous between holes (step 2)
+  The right-hand port group (x_draw 47.43, 49.69, 51.94, 54.20, 56.45) holds bottom mic 1; the
+  "BOTTOM MIC 1" leader has two arrowheads, at the holes x_draw 49.69 and 51.94 (re-read 2026-11-13),
+  so mic 1 is one or both of those two; which, if it matters, by single-hole covering (step 2)
 - **Blocking:** Phase 2 plate sims
 - **Depends on it:** `iphone17pro.yaml` ports, capture-app `txChannel`
 
