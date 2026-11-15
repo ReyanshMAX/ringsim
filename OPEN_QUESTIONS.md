@@ -235,3 +235,19 @@ On the phone the plate echo should be well under the direct path, so it may not 
 - **Options:** align background and plate takes on a shared direct-path template; exclude bins 0..3 from the
   peak search; sub-sample alignment
 - **Depends on it:** `validation/plate.py`, the Phase 2 peak-bin criterion
+
+## Q-029: Rig arms thicker than a cell (phone arm, plate support)
+
+VALIDATION.md leaves the rod out of every phone sim because it is "thinner than a cell" (dx = 2 mm), and says nothing
+about what holds the plate. The user's rig (not built yet, 2026-11-14): an 18 in ruler on edge running straight back along +y from a printed
+holder on the phone's top 25 mm, ~6 cm of it clamped to the desk, desk edge ≥ 37.5 cm from the phone (D-091);
+the plate would sit on a second arm
+coming in along the speaker axis from beyond the plate, hidden behind it. The range window is 30 cm one-way
+(`range_window_m` = 84·343/(2·48000) = 0.300 m, DEVICES.md), so the phone arm from ~150 mm to 300 mm from the
+bottom-edge pair, and the plate dowel from the plate out to 300 mm, are inside it.
+- **Blocking:** the Phase 2 plate sims and the sim background (same as Q-027), once the rig is built
+- **Options:** phone arm: fold its first segment into `clamp_box_mm`; add a second rig box; or leave it unmodelled
+  with a stated reason (behind the phone body) and the VALIDATION.md rod line reworded. Plate support: add it to the
+  plate jobs as a box behind the plate; or leave it unmodelled (shadowed by the 100 mm plate) and remove it with the
+  plate for the background takes so sim and real match (plate vs no plate)
+- **Depends on it:** VALIDATION.md Rig, `session.json` `clamp_box_mm`, `jobs/p2_plate_*.yaml` `rig_boxes`

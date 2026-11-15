@@ -18,7 +18,7 @@ processed with the same `ringsim.proc` code as sim (D-008).
 
 ## Rig
 
-- Phone held in a clamp on a thin rod, free air, ≥40 cm from table, walls, body (D-018).
+- Phone held in a clamp on a thin rod, free air, ≥37.5 cm from table, walls, body (D-018, D-091).
   The clamp grips only the top 25 mm of the phone (y_dev ≥ 50.0 mm), as far from the bottom-edge
   pair as possible. Its outer bounding box is measured once (±1 mm) and stored in `session.json` as
   `clamp_box_mm: {center: [x,y,z], size: [w,l,t]}` in device-frame mm; every phone sim, including
@@ -45,7 +45,7 @@ data/captures/<session>/
                         background_t<k> (no plate), free_air_<n>; any other stem raises. `ringsim validate plate`
                         orders free_air by integer n: lowest = session start, highest = end.
   <take>.json           capture-app metadata (CAPTURE_APP.md schema)
-  free_air_<n>.wav      ≥ 5 s, active pair, nothing within 40 cm (D-018 rig, no target):
+  free_air_<n>.wav      ≥ 5 s, active pair, nothing within 37.5 cm (D-018/D-091 rig, no target):
                         the session's reference for referenced profiles (D-042). One at the start
                         and one at the end of every session; the two are compared to check drift.
                         Drift number (D-079): both recordings aligned on their own offset, both referenced with the START

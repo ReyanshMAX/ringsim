@@ -176,7 +176,7 @@ and file write results. A "Log" tab shows it with a Copy button.
 ## UI
 
 Default route/mic: `bottomSpeaker` + `bottom` (D-023), tx channel from `UserDefaults`. Single screen (includes a tx-channel picker: left / right / both): route picker, mic picker, tx file picker (the bundle's tx WAVs, see "Bundle"), take label
-text field, duration stepper (1–60 s, 1 s steps), Record button (disabled while recording),
+text field, duration stepper (1–60 s, 1 s steps), Record button (disabled while recording or counting down),
 list of saved takes with delete. Files saved to the app's Documents dir as
 `<label>.wav` + `<label>.json`; duplicate labels get `_2`, `_3`.
 
@@ -187,6 +187,11 @@ list of saved takes with delete. Files saved to the app's Documents dir as
   attached (Protocol A step 3 noise floor); tap and file writing are unchanged.
 - Label: Record is disabled while the label is empty or has a character outside
   `[A-Za-z0-9_.-]`.
+- Countdown (D-092): tapping Record freezes the take settings (label, route, mic, tx channel, tx file,
+  duration) and starts a 5 s countdown; the button shows the seconds left and cancels the countdown
+  when tapped. The take starts (session config, tap, player) only when it reaches 0, so nothing is
+  recorded and `startedUTC` / latencies are read after the countdown. Leaving the Capture tab cancels it.
+  Silent: no sound or haptic marks the start. Deleting takes is disabled during the countdown.
 
 ## CI build
 

@@ -143,7 +143,7 @@ def free_air_reference(stream: np.ndarray, tx: np.ndarray, band: tuple[float, fl
     #    TX = rfft(tx), L = len(tx), mask = the rx_from_ir raised-cosine band mask
     # 3. gate: keep circular lags |j| <= G, G = floor(0.70 * fs / C_SIM) (102 samples ring, 97 phone:
     #    excess path < 0.70 m, i.e. reflectors closer than ~35 cm), Tukey taper (alpha 0.5), zero
-    #    elsewhere. Removes room echoes; free-air captures keep everything >= 40 cm away (D-018).
+    #    elsewhere. Removes room echoes; free-air captures keep everything >= 37.5 cm away (D-018, D-091).
     #    The device's own body (phone far end, ring band) stays in the reference, in sim and real.
     #    A narrow gate (~2 main lobes, 25 samples) truncates the band-limited impulse and costs 8-17 %
     #    error (scratch check 2026-11-10); 100 samples is within 0.6 % of no gate.
@@ -221,7 +221,7 @@ phase: a 90° carrier phase change takes the sim-vs-real correlation of a signed
 device measures H_dev · H_direct; dividing by it leaves H_scene / H_direct, the same quantity in sim
 and real.
 
-Conditions: the reference is taken with nothing inside the range window (real: device ≥ 40 cm from
+Conditions: the reference is taken with nothing inside the range window (real: device ≥ 37.5 cm (D-091) from
 any surface; sim: device-only snapshot); H_dev must not change between reference and data
 (same session); H_direct has no near-zeros in band (the direct path dominates the gated reference).
 What it does not remove: parts of H_dev that differ by direction (transducer directivity), and

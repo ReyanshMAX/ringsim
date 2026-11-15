@@ -18,6 +18,8 @@ struct CaptureView: View {
     static let txChannelKey = "txChannel"
     /// Picker entry for a take with no playback (noise floor, D-088). Not a file name.
     static let noPlayback = "none (no playback)"
+    /// Seconds between tapping Record and the take starting, so the user can step away from the rig (D-092).
+    static let countdownS = 5
 
     @StateObject private var rig = AudioRig()
 
@@ -30,11 +32,14 @@ struct CaptureView: View {
     @State private var txFile: String?
     @State private var label = ""
     @State private var durationS = 10
+    /// Seconds left before the take starts; nil when no countdown is running (D-092).
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
 
     private let txFiles = Recording.bundledTxFiles()
 
     private var canRecord: Bool {
-        !rig.isRecording && txChannel != nil && txFile != nil && Recording.isValidLabel(label)
+        !rig.isRecording && countdown == nil && txChannel != nil && txFile != nil && Recording.isValidLabel(label)
     }
 
     var body: some View {
@@ -70,14 +75,12 @@ struct CaptureView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Stepper("Duration \(durationS) s", value: $durationS, in: 1...60, step: 1)
-                    Button(rig.isRecording ? "Recording..." : "Record") {
-                        guard let txChannel, let txFile else { return }
-                        // "none (no playback)" records without a player (D-088).
-                        let file: String? = (txFile == CaptureView.noPlayback) ? nil : txFile
-                        rig.record(label: label, txFile: file, txChannel: txChannel, route: route,
-                                   mic: mic, durationS: durationS)
+                    if let countdown {
+                        Button("Starting in \(countdown) s, tap to cancel", role: .cancel) { cancelCountdown() }
+                    } else {
+                        Button(rig.isRecording ? "Recording..." : "Record") { startCountdown() }
+                            .disabled(!canRecord)
                     }
-                    .disabled(!canRecord)
                     Text(rig.status).font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Saved takes") {
@@ -88,12 +91,41 @@ struct CaptureView: View {
                         .onDelete { idx in
                             for take in idx.map({ rig.takes[$0] }) { rig.delete(take) }
                         }
-                        .deleteDisabled(rig.isRecording)
+                        .deleteDisabled(rig.isRecording || countdown != nil)
                 }
             }
             .navigationTitle("RingCapture")
             .onAppear { rig.refreshTakes() }
+            .onDisappear { cancelCountdown() }
         }
+    }
+
+    /// Freezes the take settings at the tap, counts down `countdownS` seconds, then starts the take (D-092).
+    private func startCountdown() {
+        guard canRecord, let txChannel, let txFile else { return }
+        // "none (no playback)" records without a player (D-088).
+        let file: String? = (txFile == CaptureView.noPlayback) ? nil : txFile
+        let takeLabel = label, takeRoute = route, takeMic = mic, takeDurationS = durationS
+        dlog("countdown \(CaptureView.countdownS) s for take \(takeLabel)")
+        countdown = CaptureView.countdownS
+        countdownTask = Task { @MainActor in
+            for left in stride(from: CaptureView.countdownS, to: 0, by: -1) {
+                countdown = left
+                do { try await Task.sleep(nanoseconds: 1_000_000_000) } catch { return }
+            }
+            countdown = nil
+            countdownTask = nil
+            rig.record(label: takeLabel, txFile: file, txChannel: txChannel, route: takeRoute,
+                       mic: takeMic, durationS: takeDurationS)
+        }
+    }
+
+    private func cancelCountdown() {
+        guard countdown != nil else { return }
+        countdownTask?.cancel()
+        countdownTask = nil
+        countdown = nil
+        dlog("countdown cancelled")
     }
 }
 
